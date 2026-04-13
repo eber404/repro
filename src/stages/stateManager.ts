@@ -8,14 +8,14 @@ export async function resetState(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  if (ctx.resetStrategy === 'deep-link') {
-    if (!ctx.resetDeepLink) {
-      ctx.error = 'resetDeepLink is required when resetStrategy is deep-link';
-      return ctx;
-    }
+  if (ctx.resetStrategy === 'deep-link' && !ctx.resetDeepLink) {
+    ctx.error = 'resetDeepLink is required when resetStrategy is deep-link';
+    return ctx;
+  }
 
+  if (ctx.resetStrategy === 'deep-link') {
     try {
-      await openDeepLink(ctx.platform, ctx.deviceId, ctx.resetDeepLink);
+      await openDeepLink(ctx.platform, ctx.deviceId, ctx.resetDeepLink as string);
       return ctx;
     } catch (err) {
       ctx.error = `Failed to reset state via deep link: ${err}`;
@@ -28,23 +28,18 @@ export async function resetState(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  const packageName = extractPackageName(ctx.appId);
-
-  try {
-    if (ctx.platform === 'ios') {
-      const proc = Bun.spawn({
-        cmd: ['xcrun', 'simctl', 'erase', ctx.deviceId]
-      });
-      await proc.exited;
-    } else {
-      const proc = Bun.spawn({
-        cmd: ['adb', '-s', ctx.deviceId, 'shell', 'pm', 'clear', packageName]
-      });
-      await proc.exited;
-    }
-  } catch (err) {
-    ctx.error = `Failed to reset state: ${err}`;
+  if (ctx.platform === 'ios') {
+    ctx.error = await resetIOSAppState(ctx.deviceId, ctx.appId);
+    return ctx;
   }
+
+  const packageName = extractPackageName(ctx.appId);
+  const result = await runCommand(['adb', '-s', ctx.deviceId, 'shell', 'pm', 'clear', packageName]);
+  if (result.code === 0) {
+    return ctx;
+  }
+
+  ctx.error = `Failed to clear Android app data: ${result.stderr || result.stdout || `exit code ${result.code}`}`;
 
   return ctx;
 }
@@ -90,4 +85,48 @@ export function buildDeepLinkCommand(platform: 'android' | 'ios', deviceId: stri
     '-d',
     deepLink
   ];
+}
+
+export function buildIOSClearStateCommands(deviceId: string, appId: string): string[][] {
+  return [
+    ['xcrun', 'simctl', 'terminate', deviceId, appId]
+  ];
+}
+
+async function resetIOSAppState(deviceId: string, appId: string): Promise<string | null> {
+  const commands = buildIOSClearStateCommands(deviceId, appId);
+  for (const command of commands) {
+    const result = await runCommand(command);
+    if (result.code === 0) {
+      continue;
+    }
+
+    if (isSafeTerminateMiss(result.stderr, result.stdout)) {
+      continue;
+    }
+
+    return `Failed to reset iOS state: ${result.stderr || result.stdout || `exit code ${result.code}`}`;
+  }
+
+  return null;
+}
+
+function isSafeTerminateMiss(stderr: string, stdout: string): boolean {
+  const combined = `${stderr}\n${stdout}`.toLowerCase();
+  if (!combined) {
+    return false;
+  }
+
+  return combined.includes('found nothing to terminate') || combined.includes('not running');
+}
+
+async function runCommand(command: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  const proc = Bun.spawn({ cmd: command, stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited
+  ]);
+
+  return { code, stdout, stderr };
 }

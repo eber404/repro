@@ -38,6 +38,14 @@ export function buildPlannerPrompt(ctx: ReproContext): string {
 - password: "${ctx.credentials.password}"`
     : '';
 
+  const loginFlowInfo = ctx.loginFlow
+    ? `\n\nLOGIN FLOW (derived from UI tree, already handled by compiler):
+- emailField: "${ctx.loginFlow.emailField}"
+- passwordField: "${ctx.loginFlow.passwordField}"
+- loginButton: "${ctx.loginFlow.loginButton}"
+Do NOT include login steps in the plan when this block exists.`
+    : '';
+
   const refinementInfo = ctx.refinement
     ? `\n\nPREVIOUS FAILED ATTEMPT CONTEXT:
 - previousPlan: ${JSON.stringify(ctx.refinement)}
@@ -45,7 +53,7 @@ export function buildPlannerPrompt(ctx: ReproContext): string {
 - latestEvaluation: ${ctx.reproduced === false ? 'not reproduced' : 'unknown'}`
     : '';
 
-  return `Bug: "${ctx.bug}"${credentialsInfo}${refinementInfo}
+  return `Bug: "${ctx.bug}"${credentialsInfo}${loginFlowInfo}${refinementInfo}
 UI Tree: ${JSON.stringify(ctx.uiTree, null, 2)}
 
 Generate a JSON plan to reproduce this bug.
@@ -59,6 +67,11 @@ CRITICAL: Only use these Maestro-supported actions:
 - launchApp: included automatically, do NOT add as step
 
 INVALID actions (do NOT use): waitForElement, navigate, assertScreenTransitionCount, scroll, etc.
+
+Selector rules:
+- Use exact labels from UI Tree when possible
+- Preserve original language from UI Tree (do not translate labels)
+- Do NOT use alternation patterns like "A|B|C"
 
 Response must be valid JSON matching this exact structure:
 {

@@ -1,6 +1,9 @@
 import { ReproContext } from '@/context';
 
 const { mkdirSync, existsSync, writeFileSync } = require('fs');
+const { dirname } = require('path');
+
+const TIMESTAMP_DIRECTORY_PATTERN = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/;
 
 function formatTimestamp(date: Date): string {
   const y = date.getFullYear();
@@ -25,11 +28,10 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  const timestamp = formatTimestamp(new Date());
-  const flowTimestampDir = `${ctx.flowDir}/${timestamp}`;
-  const attemptDir = `${flowTimestampDir}/attempt-${ctx.attempt}`;
+  const flowRunDir = resolveFlowRunDir(ctx.flowDir, ctx.flowFile);
+  const attemptDir = `${flowRunDir}/attempt-${ctx.attempt}`;
 
-  ctx.flowDir = flowTimestampDir;
+  ctx.flowDir = flowRunDir;
 
   mkdirSync(attemptDir, { recursive: true });
 
@@ -39,6 +41,29 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
   ctx.flowFile = flowFile;
 
   return ctx;
+}
+
+export function resolveFlowRunDir(flowDir: string, flowFile: string | null): string {
+  if (flowFile) {
+    return dirname(dirname(flowFile));
+  }
+
+  if (isTimestampDirectory(flowDir)) {
+    return flowDir;
+  }
+
+  const timestamp = formatTimestamp(new Date());
+  return `${flowDir}/${timestamp}`;
+}
+
+function isTimestampDirectory(pathValue: string): boolean {
+  const segments = pathValue.split('/').filter(Boolean);
+  const lastSegment = segments[segments.length - 1];
+  if (!lastSegment) {
+    return false;
+  }
+
+  return TIMESTAMP_DIRECTORY_PATTERN.test(lastSegment);
 }
 
 function generateMaestroYaml(ctx: ReproContext): string {
@@ -85,6 +110,11 @@ function generateLoginSteps(ctx: ReproContext): string {
   return yaml;
 }
 
+export function normalizeSelector(selector: string): string {
+  const firstAlternative = selector.split('|')[0] ?? '';
+  return firstAlternative.trim();
+}
+
 function compileStepToYaml(step: { action: string; element?: string; text?: string; direction?: string; key?: string; target?: string; value?: string }): string {
   const safeElement = step.element && step.element !== 'undefined' ? step.element : null;
   const safeText = step.text && step.text !== 'undefined' ? step.text : null;
@@ -94,7 +124,7 @@ function compileStepToYaml(step: { action: string; element?: string; text?: stri
   switch (step.action) {
     case 'tap':
       if (!safeElement) return '';
-      return `- tapOn: "${safeElement}"\n`;
+      return `- tapOn: "${normalizeSelector(safeElement)}"\n`;
     case 'input':
       if (!safeText) return '';
       return `- inputText:\n    text: "${safeText}"\n`;
@@ -106,7 +136,7 @@ function compileStepToYaml(step: { action: string; element?: string; text?: stri
       return `- pressKey: "${safeKey}"\n`;
     case 'assert':
       if (!safeElement) return '';
-      return `- assertVisible: "${safeElement}"\n`;
+      return `- assertVisible: "${normalizeSelector(safeElement)}"\n`;
     default:
       return `# Unsupported action: ${step.action}\n`;
   }

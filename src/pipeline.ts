@@ -1,5 +1,6 @@
 import { ReproContext } from '@/context';
 import { gatherContext } from '@/stages/gatherContext';
+import { detectLoginFields } from '@/stages/loginDetector';
 import { plan } from '@/stages/planner';
 import { compile } from '@/stages/compiler';
 import { resetState } from '@/stages/stateManager';
@@ -10,6 +11,7 @@ import { refine } from '@/stages/refiner';
 
 const PIPELINE_STAGES = [
   gatherContext,
+  detectLoginFields,
   plan,
   compile,
   resetState,

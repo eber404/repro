@@ -1,17 +1,15 @@
 import { ReproContext } from '@/context';
 
 const { mkdirSync, writeFileSync } = require('fs');
+const { dirname } = require('path');
 
-const HASH_LENGTH = 8;
 const LOG_EXCERPT_MAX_LENGTH = 4_000;
 
 export async function observe(ctx: ReproContext): Promise<ReproContext> {
   console.log('   📡 Observing execution...');
 
   try {
-    const hash = ctx.bug.replace(/[^a-z0-9]/gi, '').substring(0, HASH_LENGTH);
-    const reportDir = `${ctx.flowDir}/${hash}`;
-    const logsDir = `${reportDir}/logs`;
+    const logsDir = resolveLogsDir(ctx.flowFile, ctx.flowDir, ctx.attempt);
 
     mkdirSync(logsDir, { recursive: true });
 
@@ -36,25 +34,40 @@ export async function observe(ctx: ReproContext): Promise<ReproContext> {
   return ctx;
 }
 
+export function resolveLogsDir(flowFile: string | null, flowRunDir: string, attempt: number): string {
+  if (flowFile) {
+    return `${dirname(flowFile)}/logs`;
+  }
+
+  return `${flowRunDir}/attempt-${attempt}/logs`;
+}
+
 async function captureDeviceLogs(platform: 'android' | 'ios', deviceId: string | null): Promise<string> {
   try {
-    let proc: { stdout: ReadableStream<Uint8Array> | null; exited: Promise<number> };
-
-    if (platform === 'android') {
-      if (deviceId) {
-        proc = Bun.spawn({ cmd: ['adb', '-s', deviceId, 'logcat', '-d'] });
-      } else {
-        proc = Bun.spawn({ cmd: ['adb', 'logcat', '-d'] });
-      }
-    } else {
-      proc = Bun.spawn({ cmd: ['xcrun', 'simctl', 'diagnose'] });
-    }
+    const command = buildLogCaptureCommand(platform, deviceId);
+    const proc = Bun.spawn({ cmd: command });
 
     const output = await new Response(proc.stdout).text();
     return output || '';
   } catch {
     return 'Failed to capture logs';
   }
+}
+
+export function buildLogCaptureCommand(platform: 'android' | 'ios', deviceId: string | null): string[] {
+  if (platform === 'ios' && !deviceId) {
+    return ['xcrun', 'simctl', 'list', 'devices'];
+  }
+
+  if (platform === 'ios') {
+    return ['xcrun', 'simctl', 'spawn', deviceId as string, 'log', 'show', '--style', 'compact', '--last', '5m'];
+  }
+
+  if (!deviceId) {
+    return ['adb', 'logcat', '-d'];
+  }
+
+  return ['adb', '-s', deviceId, 'logcat', '-d'];
 }
 
 function detectAnomalies(logs: string): string[] {

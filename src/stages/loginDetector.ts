@@ -1,173 +1,133 @@
 import { ReproContext } from '@/context';
 
-const { writeFileSync, mkdirSync, existsSync } = require('fs');
-
 interface UIElement {
   text?: string;
   contentDescription?: string;
   resourceId?: string;
   hint?: string;
-  className?: string;
+  children?: UIElement[];
 }
 
-async function launchAppAndWait(ctx: ReproContext): Promise<void> {
-  console.log('   📝 Creating detect_login_flow.yaml...');
-  const detectFlow = `appId: ${ctx.appId}
-platform: ${ctx.platform}
----
-- launchApp:
-    appId: ${ctx.appId}
-    clearState: true
-    clearKeychain: true
-- waitForAnimationToEnd:
-    timeout: 5000
-`;
-
-  const flowFile = `${process.cwd()}/${ctx.flowDir}/detect_login_flow.yaml`;
-  writeFileSync(flowFile, detectFlow);
-  console.log(`   📄 Flow file: ${flowFile}`);
-
-  console.log(`   ▶️ Running maestro test...`);
-  const proc = Bun.spawn({
-    cmd: [
-      ctx.maestroPath,
-      '--platform', ctx.platform,
-      '--udid', ctx.deviceId!,
-      'test',
-      flowFile,
-      '--no-reinstall-driver'
-    ],
-    stdout: 'pipe',
-    stderr: 'pipe'
-  });
-
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited
-  ]);
-
-  console.log(`   📤 Maestro exit code: ${code}`);
-  if (code !== 0) {
-    console.log(`   📤 stdout: ${stdout.substring(0, 300)}`);
-    console.log(`   📤 stderr: ${stderr.substring(0, 300)}`);
-  }
+interface LoginSelectors {
+  emailField: string;
+  passwordField: string;
+  loginButton: string;
 }
 
-async function getHierarchy(ctx: ReproContext): Promise<UIElement[]> {
-  console.log('   🔍 Getting UI hierarchy...');
-  
-  const proc = Bun.spawn({
-    cmd: [
-      ctx.maestroPath,
-      '--platform', ctx.platform,
-      '--udid', ctx.deviceId!,
-      'hierarchy'
-    ],
-    stdout: 'pipe',
-    stderr: 'pipe'
-  });
+const DEFAULT_LOGIN_SELECTORS: LoginSelectors = {
+  emailField: 'Email',
+  passwordField: 'Password',
+  loginButton: 'Sign In'
+};
 
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited
-  ]);
-
-  if (code !== 0) {
-    console.log(`   ⚠️ Hierarchy failed: ${stderr}`);
-    return [];
-  }
-
-  try {
-    const jsonStart = stdout.indexOf('{');
-    const jsonText = jsonStart >= 0 ? stdout.substring(jsonStart) : stdout;
-    const hierarchy = JSON.parse(jsonText);
-    
-    const elements: UIElement[] = [];
-    const tree = hierarchy.frame?.children || hierarchy;
-    
-    function traverse(node: any) {
-      if (node.text) elements.push({ text: node.text });
-      if (node.contentDescription) elements.push({ contentDescription: node.contentDescription });
-      if (node.hint) elements.push({ hint: node.hint });
-      if (node.resourceId) elements.push({ resourceId: node.resourceId });
-      if (node.className) elements.push({ className: node.className });
-      
-      if (node.children) {
-        for (const child of node.children) {
-          traverse(child);
-        }
-      }
-    }
-    
-    traverse(tree);
-    console.log(`   📊 Found ${elements.length} UI elements`);
-    return elements;
-  } catch (err) {
-    console.log(`   ⚠️ Failed to parse hierarchy: ${err}`);
-    return [];
-  }
-}
-
-function detectLoginFieldsFromElements(elements: UIElement[]): { emailField: string; passwordField: string; loginButton: string } {
-  let emailField = 'Email';
-  let passwordField = 'Password';
-  let loginButton = 'Sign In';
-
-  const emailPatterns = ['email', 'usuario', 'username', 'user', 'e-mail', 'login'];
-  const passwordPatterns = ['password', 'senha', 'passwd', 'pwd'];
-  const buttonPatterns = ['sign in', 'login', 'entrar', 'log in', 'submit', 'acesso', 'entrar'];
-
-  for (const el of elements) {
-    const text = (el.text || el.contentDescription || el.hint || '').toLowerCase();
-    const resourceId = (el.resourceId || '').toLowerCase();
-
-    if (!emailField && emailPatterns.some(p => text.includes(p) || resourceId.includes(p))) {
-      emailField = el.text || el.contentDescription || el.hint || 'Email';
-    }
-
-    if (!passwordField && passwordPatterns.some(p => text.includes(p) || resourceId.includes(p))) {
-      passwordField = el.text || el.contentDescription || el.hint || 'Password';
-    }
-
-    if (buttonPatterns.some(p => text.includes(p) || resourceId.includes(p))) {
-      loginButton = el.text || el.contentDescription || el.hint || 'Sign In';
-    }
-  }
-
-  return { emailField, passwordField, loginButton };
-}
+const EMAIL_PATTERNS = ['email', 'e-mail', 'usuario', 'username', 'user', 'login'];
+const PASSWORD_PATTERNS = ['password', 'senha', 'passwd', 'pwd'];
+const LOGIN_BUTTON_PATTERNS = ['entrar', 'login', 'log in', 'sign in', 'submit', 'acessar'];
 
 export async function detectLoginFields(ctx: ReproContext): Promise<ReproContext> {
-  if (!ctx.credentials?.email || !ctx.credentials?.password) {
+  if (!hasCredentials(ctx)) {
     return ctx;
   }
 
-  if (!ctx.deviceId) {
-    ctx.error = 'Login detector requires deviceId';
+  if (!ctx.uiTree) {
+    ctx.loginFlow = { ...DEFAULT_LOGIN_SELECTORS };
     return ctx;
   }
 
-  console.log('   🔍 Detecting login fields from UI hierarchy...');
-
-  try {
-    await launchAppAndWait(ctx);
-    const elements = await getHierarchy(ctx);
-    
-    const fields = detectLoginFieldsFromElements(elements);
-    
-    ctx.loginFlow = fields;
-    console.log(`   ✅ Login fields detected: ${fields.emailField}, ${fields.passwordField}, ${fields.loginButton}`);
-  } catch (err) {
-    console.log(`   ⚠️ Detection failed: ${(err as Error).message}`);
-    ctx.loginFlow = {
-      emailField: 'Email',
-      passwordField: 'Password',
-      loginButton: 'Sign In'
-    };
-    console.log(`   ✅ Using fallback login fields: Email, Password, Sign In`);
+  const elements = collectElements(ctx.uiTree as UIElement);
+  if (elements.length === 0) {
+    ctx.loginFlow = { ...DEFAULT_LOGIN_SELECTORS };
+    return ctx;
   }
 
+  ctx.loginFlow = detectLoginFieldsFromElements(elements);
   return ctx;
+}
+
+function hasCredentials(ctx: ReproContext): boolean {
+  return Boolean(ctx.credentials?.email && ctx.credentials?.password);
+}
+
+function collectElements(root: UIElement): UIElement[] {
+  const collected: UIElement[] = [];
+  const stack: UIElement[] = [root];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    collected.push(current);
+    const children = current.children || [];
+    for (const child of children) {
+      stack.push(child);
+    }
+  }
+
+  const frameChildren = (root as { frame?: { children?: UIElement[] } }).frame?.children || [];
+  for (const child of frameChildren) {
+    stack.push(child);
+  }
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    collected.push(current);
+    const children = current.children || [];
+    for (const child of children) {
+      stack.push(child);
+    }
+  }
+
+  return collected;
+}
+
+function detectLoginFieldsFromElements(elements: UIElement[]): LoginSelectors {
+  let emailField: string | null = null;
+  let passwordField: string | null = null;
+  let loginButton: string | null = null;
+
+  for (const element of elements) {
+    const selectorValue = pickSelectorValue(element);
+    const normalized = selectorValue.toLowerCase();
+    const normalizedId = (element.resourceId || '').toLowerCase();
+
+    if (!emailField && includesAny(normalized, normalizedId, EMAIL_PATTERNS)) {
+      emailField = selectorValue;
+      continue;
+    }
+
+    if (!passwordField && includesAny(normalized, normalizedId, PASSWORD_PATTERNS)) {
+      passwordField = selectorValue;
+      continue;
+    }
+
+    if (!loginButton && includesAny(normalized, normalizedId, LOGIN_BUTTON_PATTERNS)) {
+      loginButton = selectorValue;
+    }
+  }
+
+  return {
+    emailField: emailField || DEFAULT_LOGIN_SELECTORS.emailField,
+    passwordField: passwordField || DEFAULT_LOGIN_SELECTORS.passwordField,
+    loginButton: loginButton || DEFAULT_LOGIN_SELECTORS.loginButton
+  };
+}
+
+function pickSelectorValue(element: UIElement): string {
+  return element.text || element.contentDescription || element.hint || element.resourceId || '';
+}
+
+function includesAny(text: string, resourceId: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    if (text.includes(pattern) || resourceId.includes(pattern)) {
+      return true;
+    }
+  }
+
+  return false;
 }
