@@ -1,0 +1,12 @@
+{
+  "name": "repro",
+  "version": "0.1.0",
+  "description": "Autonomous Bug Reproduction CLI",
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

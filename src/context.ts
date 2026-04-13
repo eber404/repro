@@ -1,0 +1,43 @@
+export interface ReproContext {
+  bug: string;
+  appPath: string;
+  platform: 'android' | 'ios';
+  maxRetries: number;
+  flowDir: string;
+  resetStrategy: 'clear-app-data' | 'deep-link';
+  uiTree: object | null;
+  plan: Plan | null;
+  flowFile: string | null;
+  executionResult: ExecutionResult | null;
+  executionReport: ExecutionReport | null;
+  reproduced: boolean | null;
+  refinement: Plan | null;
+  error: string | null;
+  attempt: number;
+}
+
+export interface ExecutionResult {
+  success: boolean;
+  output: string;
+  screenshots: string[];
+}
+
+export interface ExecutionReport {
+  timestamp: string;
+  logs: string;
+  screenshots: string[];
+  flowFile: string;
+}
+
+export interface Plan {
+  steps: PlanStep[];
+  hypothesis?: string;
+}
+
+export interface PlanStep {
+  action: 'tap' | 'input' | 'swipe' | 'pressKey' | 'assert';
+  element?: string;
+  text?: string;
+  direction?: string;
+  key?: string;
+}
