@@ -46,22 +46,21 @@ export async function spawnAgent(
     stderr: 'pipe'
   });
 
-  let timedOut = false;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      proc.kill();
+      reject(new Error(`Agent ${agent} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
 
-  const timer = setTimeout(() => {
-    timedOut = true;
-    proc.kill();
-    throw new Error(`Agent ${agent} timed out after ${timeoutMs}ms`);
-  }, timeoutMs);
-
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited
+  const [stdout, stderr, code] = await Promise.race([
+    Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited
+    ]),
+    timeoutPromise
   ]);
-
-  clearTimeout(timer);
-  if (timedOut) return '';
 
   if (code !== 0) {
     throw new Error(`Agent ${agent} exited with code ${code}: ${stderr}`);
