@@ -22,3 +22,4 @@ node_modules/
 # Environment
 .env
 .env.local
+maestro/maestro.zip
