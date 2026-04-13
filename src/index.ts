@@ -1,6 +1,9 @@
 import { loadConfig } from '@/config';
+import type { Config } from '@/config';
 import { runPipeline } from '@/pipeline';
 import { generateReport, printSummary } from '@/utils/output';
+
+const RADIX = 10;
 
 const HELP_TEXT = `
 repro - Autonomous Bug Reproduction CLI
@@ -24,20 +27,11 @@ function parseArgs(args: string[]): { bug: string; overrides: Partial<Config> } 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--app') overrides.appPath = args[++i];
-    else if (arg === '--retries') overrides.maxRetries = parseInt(args[++i], 10);
+    else if (arg === '--retries') overrides.maxRetries = parseInt(args[++i], RADIX);
     else if (arg === '--platform') overrides.platform = args[++i] as 'android' | 'ios';
   }
 
   return { bug: bug || '', overrides };
-}
-
-interface Config {
-  appPath: string;
-  platform: 'android' | 'ios';
-  maestroSdk: boolean;
-  maxRetries: number;
-  flowDir: string;
-  resetStrategy: 'clear-app-data' | 'deep-link';
 }
 
 async function main() {

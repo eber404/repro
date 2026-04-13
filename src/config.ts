@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -21,18 +20,18 @@ const DEFAULT_CONFIG: Config = {
 };
 
 export function loadConfig(cliOverrides?: Partial<Config>): Config {
-  const globalConfigPath = join(homedir(), '.repro', 'config.json');
-  const localConfigPath = join(process.cwd(), 'repro.config.json');
+  const globalConfigPath = Bun.file(join(homedir(), '.repro', 'config.json'));
+  const localConfigPath = Bun.file(join(process.cwd(), 'repro.config.json'));
 
   let config = { ...DEFAULT_CONFIG };
 
-  if (existsSync(globalConfigPath)) {
-    const globalConfig = JSON.parse(readFileSync(globalConfigPath, 'utf-8'));
+  if (globalConfigPath.exists) {
+    const globalConfig = JSON.parse(globalConfigPath.text());
     config = { ...config, ...globalConfig };
   }
 
-  if (existsSync(localConfigPath)) {
-    const localConfig = JSON.parse(readFileSync(localConfigPath, 'utf-8'));
+  if (localConfigPath.exists) {
+    const localConfig = JSON.parse(localConfigPath.text());
     config = { ...config, ...localConfig };
   }
 
