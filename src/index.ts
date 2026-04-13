@@ -14,6 +14,7 @@ repro - Autonomous Bug Reproduction CLI
 Usage:
   repro "bug description"          Use config defaults
   repro "bug" --app ./app.apk     Override app path
+  repro "bug" --device emulator-5554  Override device ID
   repro --help                    Show this help
   repro --version                 Show version
 
@@ -23,8 +24,10 @@ Configuration:
 
 const VERSION = 'repro v0.1.0';
 
-function parseArgs(args: string[]): { bug: string; overrides: Partial<Config> } {
+function parseArgs(args: string[]): { bug: string; overrides: Partial<Config>; deviceId: string | null } {
   const overrides: Partial<Config> = {};
+  let deviceId: string | null = null;
+
   const bug = args.find(arg => !arg.startsWith('--'));
 
   for (let i = 0; i < args.length; i++) {
@@ -32,9 +35,10 @@ function parseArgs(args: string[]): { bug: string; overrides: Partial<Config> } 
     if (arg === '--app' && i + 1 < args.length) overrides.appPath = args[++i];
     else if (arg === '--retries' && i + 1 < args.length) overrides.maxRetries = parseInt(args[++i], RADIX);
     else if (arg === '--platform' && i + 1 < args.length) overrides.platform = args[++i] as 'android' | 'ios';
+    else if (arg === '--device' && i + 1 < args.length) deviceId = args[++i];
   }
 
-  return { bug: bug || '', overrides };
+  return { bug: bug || '', overrides, deviceId };
 }
 
 async function selectDevice(platform: 'android' | 'ios'): Promise<string | null> {
@@ -54,10 +58,27 @@ async function selectDevice(platform: 'android' | 'ios'): Promise<string | null>
     console.log(`   ${i + 1}. ${devices[i].name}${status}`);
   }
 
-  const device = devices[0];
-  console.log(`\n✅ Using device: ${device.name}`);
+  const choice = await question(`\nSelect device (1-${devices.length})`);
 
-  return device.id;
+  const index = parseInt(choice, RADIX) - 1;
+
+  if (isNaN(index) || index < 0 || index >= devices.length) {
+    console.log(`   Invalid selection, using first device: ${devices[0].name}`);
+    return devices[0].id;
+  }
+
+  console.log(`   ✅ Using device: ${devices[index].name}`);
+
+  return devices[index].id;
+}
+
+async function question(prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(`${prompt}: `);
+    process.stdin.once('data', (data) => {
+      resolve(data.toString().trim());
+    });
+  });
 }
 
 async function main() {
@@ -73,7 +94,7 @@ async function main() {
     return;
   }
 
-  const { bug, overrides } = parseArgs(args);
+  const { bug, overrides, deviceId: cliDeviceId } = parseArgs(args);
 
   if (!bug) {
     console.error('Error: Bug description required');
@@ -89,7 +110,7 @@ async function main() {
     process.exit(1);
   }
 
-  const deviceId = await selectDevice(config.platform);
+  const deviceId = cliDeviceId || await selectDevice(config.platform);
 
   if (!deviceId) {
     console.error('Error: No device selected or available');
