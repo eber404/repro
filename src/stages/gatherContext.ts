@@ -41,7 +41,9 @@ export async function gatherContext(ctx: ReproContext): Promise<ReproContext> {
       }
 
       try {
-        ctx.uiTree = JSON.parse(stdout);
+        const jsonStart = stdout.indexOf('{');
+        const jsonText = jsonStart >= 0 ? stdout.substring(jsonStart) : stdout;
+        ctx.uiTree = JSON.parse(jsonText);
       } catch (err) {
         ctx.error = `Failed to parse hierarchy JSON: ${err}`;
       }

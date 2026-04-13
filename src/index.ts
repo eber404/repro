@@ -13,9 +13,11 @@ const DEFAULT_MAESTRO_PATH = join(__dirname, '..', '..', 'maestro', 'maestro', '
 async function question(prompt: string): Promise<string> {
   return new Promise((resolve) => {
     process.stdout.write(`${prompt}: `);
-    process.stdin.once('data', (data) => {
+    const onData = (data: Buffer) => {
+      process.stdin.removeListener('data', onData);
       resolve(data.toString().trim());
-    });
+    };
+    process.stdin.on('data', onData);
   });
 }
 
