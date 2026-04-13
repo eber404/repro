@@ -18,58 +18,65 @@ async function question(prompt: string): Promise<string> {
   });
 }
 
-async function selectDevices(platform: 'android' | 'ios'): Promise<string[]> {
-  console.log(`\n📱 ${platform === 'android' ? 'Android devices' : 'iOS simulators'}:\n`);
+interface DeviceOption {
+  id: string;
+  name: string;
+  platform: 'android' | 'ios';
+  type: 'emulator' | 'device';
+}
 
-  const devices: Device[] = platform === 'android'
-    ? await listAndroidDevices()
-    : await listIOSSimulators();
+async function selectDevices(): Promise<DeviceOption[]> {
+  console.log('\n📱 Available devices:\n');
 
-  if (devices.length === 0) {
-    console.log(`   ❌ No ${platform} devices found. Make sure an emulator is running.`);
+  const androidDevices = await listAndroidDevices();
+  const iosDevices = await listIOSSimulators();
+
+  const allDevices: DeviceOption[] = [];
+
+  for (const d of androidDevices) {
+    allDevices.push({ id: d.id, name: d.name, platform: 'android', type: 'emulator' });
+  }
+
+  for (const d of iosDevices) {
+    allDevices.push({ id: d.id, name: d.name, platform: 'ios', type: 'emulator' });
+  }
+
+  if (allDevices.length === 0) {
+    console.log('   ❌ No devices found. Make sure an emulator is running.');
     return [];
   }
 
-  for (let i = 0; i < devices.length; i++) {
-    const status = devices[i].status ? ` (${devices[i].status})` : '';
-    console.log(`   ${i + 1}. ${devices[i].name}${status}`);
+  for (let i = 0; i < allDevices.length; i++) {
+    const device = allDevices[i];
+    const platformLabel = device.platform === 'android' ? 'Android' : 'iOS';
+    const typeLabel = device.type === 'emulator' ? 'emulator' : 'device';
+    console.log(`   ${i + 1}. ${device.name} (${platformLabel} ${typeLabel})`);
   }
 
   console.log('\n💡 Enter device numbers separated by comma (e.g., 1,3) or "all" for all devices');
   const choice = await question('\n🔧 Select devices');
 
   if (choice.toLowerCase() === 'all') {
-    console.log(`   ✅ Selected all ${devices.length} devices`);
-    return devices.map(d => d.id);
+    console.log(`   ✅ Selected all ${allDevices.length} devices`);
+    return allDevices;
   }
 
   const indices = choice.split(',').map(s => parseInt(s.trim(), RADIX) - 1);
-  const selected: string[] = [];
+  const selected: DeviceOption[] = [];
 
   for (const idx of indices) {
-    if (!isNaN(idx) && idx >= 0 && idx < devices.length) {
-      selected.push(devices[idx].id);
+    if (!isNaN(idx) && idx >= 0 && idx < allDevices.length) {
+      selected.push(allDevices[idx]);
     }
   }
 
   if (selected.length === 0) {
-    console.log('   ⚠️  No valid selection, using first device');
-    selected.push(devices[0].id);
+    console.log('   ⚠️  No valid selection');
+    return [];
   }
 
   console.log(`   ✅ Selected ${selected.length} device(s)`);
   return selected;
-}
-
-async function selectPlatform(): Promise<'android' | 'ios'> {
-  console.log('\n📲 Select platform:\n   1. Android\n   2. iOS\n   3. Both (run on all devices)');
-  const choice = await question('\n🔧 Platform (1/2/3)');
-
-  if (choice === '3') {
-    return 'both';
-  }
-
-  return choice === '2' ? 'ios' : 'android';
 }
 
 interface DeviceRun {
@@ -88,49 +95,30 @@ async function runInteractive(): Promise<void> {
     process.exit(1);
   }
 
-  const platformChoice = await selectPlatform();
+  const selectedDevices = await selectDevices();
+
+  if (selectedDevices.length === 0) {
+    console.log('❌ No devices selected');
+    process.exit(1);
+  }
+
   const config = loadConfig({});
   const runs: DeviceRun[] = [];
 
-  if (platformChoice === 'both') {
-    const androidIds = await selectDevices('android');
-    if (androidIds.length > 0) {
-      const androidAppId = await question('\n📦 Android App ID (e.g., com.example.app)');
-      if (!androidAppId) {
-        console.log('❌ Android App ID is required');
-        process.exit(1);
-      }
-      for (const id of androidIds) {
-        runs.push({ deviceId: id, platform: 'android', appId: androidAppId });
-      }
-    }
+  const platforms = [...new Set(selectedDevices.map(d => d.platform))];
 
-    const iosIds = await selectDevices('ios');
-    if (iosIds.length > 0) {
-      const iosAppId = await question('\n📦 iOS App ID (e.g., com.example.app)');
-      if (!iosAppId) {
-        console.log('❌ iOS App ID is required');
-        process.exit(1);
-      }
-      for (const id of iosIds) {
-        runs.push({ deviceId: id, platform: 'ios', appId: iosAppId });
-      }
-    }
-  } else {
-    const deviceIds = await selectDevices(platformChoice);
-    if (deviceIds.length === 0) {
-      console.log('❌ No devices selected');
-      process.exit(1);
-    }
+  for (const platform of platforms) {
+    const devicesForPlatform = selectedDevices.filter(d => d.platform === platform);
+    const platformLabel = platform === 'android' ? 'Android' : 'iOS';
 
-    const appId = await question('\n📦 App ID (e.g., com.example.app)');
+    const appId = await question(`\n📦 ${platformLabel} App ID (e.g., com.example.${platform})`);
     if (!appId) {
-      console.log('❌ App ID is required');
+      console.log(`❌ ${platformLabel} App ID is required`);
       process.exit(1);
     }
 
-    for (const id of deviceIds) {
-      runs.push({ deviceId: id, platform: platformChoice, appId });
+    for (const device of devicesForPlatform) {
+      runs.push({ deviceId: device.id, platform, appId });
     }
   }
 
@@ -139,14 +127,15 @@ async function runInteractive(): Promise<void> {
     process.exit(1);
   }
 
-  const retriesInput = await question(`🔄 Max retries [${DEFAULT_RETRIES}]`);
+  const retriesInput = await question(`\n🔄 Max retries [${DEFAULT_RETRIES}]`);
   const maxRetries = retriesInput ? parseInt(retriesInput, RADIX) : DEFAULT_RETRIES;
 
   console.log('\n' + '─'.repeat(50));
   console.log('🚀 Starting repro...\n');
 
   for (const run of runs) {
-    console.log(`📱 Running on ${run.platform} device: ${run.deviceId}\n`);
+    const platformLabel = run.platform === 'android' ? 'Android' : 'iOS';
+    console.log(`📱 Running on ${platformLabel} device: ${run.deviceId}\n`);
 
     const ctx = await runPipeline({
       bug,
