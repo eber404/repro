@@ -5,7 +5,7 @@ const ADB_TIMEOUT_MS = 30_000;
 
 export async function listAndroidDevices(): Promise<Device[]> {
   return new Promise((resolve) => {
-    const proc = spawn('adb', ['devices', '-l'], { timeout: ADB_TIMEOUT_MS });
+    const proc = spawn('adb', ['devices'], { timeout: ADB_TIMEOUT_MS });
     let output = '';
 
     proc.stdout?.on('data', (data) => { output += data.toString(); });
@@ -15,13 +15,12 @@ export async function listAndroidDevices(): Promise<Device[]> {
         .slice(1)
         .filter(line => line.trim())
         .map(line => {
-          const parts = line.split(/\s+/);
+          const parts = line.split('\t');
           const id = parts[0];
-          const status = parts[1] || 'unknown';
-          const nameMatch = line.match(/product:(\S+)/);
-          const name = nameMatch?.[1] || id;
-          return { id, name, status };
-        });
+          const status = parts[1]?.trim() || 'unknown';
+          return { id, name: id, status };
+        })
+        .filter(d => d.status === 'device');
       resolve(devices);
     });
     proc.on('error', () => resolve([]));
