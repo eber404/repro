@@ -1,8 +1,16 @@
 import { ReproContext } from '@/context';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
 
-const HASH_LENGTH = 8;
+const { mkdirSync, existsSync, writeFileSync } = require('fs');
+
+function formatTimestamp(date: Date): string {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d}_${h}-${mi}-${s}`;
+}
 
 export async function compile(ctx: ReproContext): Promise<ReproContext> {
   console.log('   🛠️ Compiling to YAML...');
@@ -12,15 +20,21 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  const flowDir = ctx.flowDir;
-  if (!existsSync(flowDir)) {
-    mkdirSync(flowDir, { recursive: true });
+  if (!ctx.flowDir || ctx.flowDir === '') {
+    ctx.error = 'flowDir is required';
+    return ctx;
   }
 
-  const hash = ctx.bug.replace(/[^a-z0-9]/gi, '').substring(0, HASH_LENGTH);
-  const flowFile = join(flowDir, `${hash}.yaml`);
+  const timestamp = formatTimestamp(new Date());
+  const flowTimestampDir = `${ctx.flowDir}/${timestamp}`;
+  const attemptDir = `${flowTimestampDir}/attempt-${ctx.attempt}`;
+
+  ctx.flowDir = flowTimestampDir;
+
+  mkdirSync(attemptDir, { recursive: true });
 
   const yaml = generateMaestroYaml(ctx);
+  const flowFile = `${attemptDir}/flow.yaml`;
   writeFileSync(flowFile, yaml);
   ctx.flowFile = flowFile;
 
@@ -35,36 +49,65 @@ function generateMaestroYaml(ctx: ReproContext): string {
   yaml += `appId: ${ctx.appPath}\n`;
   yaml += `platform: ${ctx.platform}\n`;
   yaml += `---\n`;
-  yaml += `flows:\n`;
-  yaml += `  - flow:\n`;
-  yaml += `      name: Repro flow\n`;
-  yaml += `      steps:\n`;
 
-  yaml += `        - launchApp:\n`;
-  yaml += `            appId: ${ctx.appPath}\n`;
-  yaml += `            clearState: true\n`;
-  yaml += `            clearKeychain: true\n`;
+  yaml += `- launchApp:\n`;
+  yaml += `    appId: ${ctx.appPath}\n`;
+  yaml += `    clearState: true\n`;
+  yaml += `    clearKeychain: true\n`;
 
-  for (const step of ctx.plan.steps) {
-    yaml += `        ${compileStepToYaml(step)}`;
+  if (ctx.loginFlow) {
+    yaml += generateLoginSteps(ctx);
+  }
+
+  if (ctx.plan) {
+    for (const step of ctx.plan.steps) {
+      yaml += `${compileStepToYaml(step)}`;
+    }
   }
 
   return yaml;
 }
 
-function compileStepToYaml(step: { action: string; element?: string; text?: string; direction?: string }): string {
+function generateLoginSteps(ctx: ReproContext): string {
+  const { emailField, passwordField, loginButton } = ctx.loginFlow!;
+  const { email, password } = ctx.credentials!;
+
+  let yaml = '';
+  yaml += `- tapOn: "${emailField}"\n`;
+  yaml += `- inputText:\n`;
+  yaml += `    text: "${email}"\n`;
+  yaml += `- tapOn: "${passwordField}"\n`;
+  yaml += `- inputText:\n`;
+  yaml += `    text: "${password}"\n`;
+  yaml += `- tapOn: "${loginButton}"\n`;
+  yaml += `- waitForAnimationToEnd:\n`;
+
+  return yaml;
+}
+
+function compileStepToYaml(step: { action: string; element?: string; text?: string; direction?: string; key?: string; target?: string; value?: string }): string {
+  const safeElement = step.element && step.element !== 'undefined' ? step.element : null;
+  const safeText = step.text && step.text !== 'undefined' ? step.text : null;
+  const safeDirection = step.direction && step.direction !== 'undefined' ? step.direction : null;
+  const safeKey = step.key && step.key !== 'undefined' ? step.key : null;
+
   switch (step.action) {
     case 'tap':
-      return `- tapOn: "${step.element}"\n`;
+      if (!safeElement) return '';
+      return `- tapOn: "${safeElement}"\n`;
     case 'input':
-      return `- inputText:\n            text: "${step.text}"\n`;
+      if (!safeText) return '';
+      return `- inputText:\n    text: "${safeText}"\n`;
     case 'swipe':
-      return `- swipe: "${step.direction}"\n`;
+      if (!safeDirection) return '';
+      return `- swipe: "${safeDirection.toUpperCase()}"\n`;
     case 'pressKey':
-      return `- pressKey: "${step.element}"\n`;
+      if (!safeKey) return '';
+      return `- pressKey: "${safeKey}"\n`;
     case 'assert':
-      return `- assertVisible: "${step.element}"\n`;
+      if (!safeElement) return '';
+      return `- assertVisible: "${safeElement}"\n`;
     default:
-      return `# Unknown action: ${step.action}\n`;
+      return `# Unsupported action: ${step.action}\n`;
   }
 }

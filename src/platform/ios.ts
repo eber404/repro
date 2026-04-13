@@ -1,35 +1,33 @@
-import { spawn } from 'child_process';
 import type { Device } from '@/context';
 
-const SIMCTL_TIMEOUT_MS = 30_000;
-
 export async function listIOSSimulators(): Promise<Device[]> {
-  return new Promise((resolve) => {
-    const proc = spawn('xcrun', ['simctl', 'list', 'devices', 'available'], { timeout: SIMCTL_TIMEOUT_MS });
-    let output = '';
-
-    proc.stdout?.on('data', (data) => { output += data.toString(); });
-    proc.on('close', () => {
-      const devices: Device[] = [];
-      const lines = output.split('\n');
-
-      for (const line of lines) {
-        if (!line.includes('Booted')) continue;
-
-        const nameMatch = line.match(/([^\(]+)\s+\(/);
-        const idMatch = line.match(/([A-F0-9-]{36})/);
-
-        if (nameMatch && idMatch) {
-          const name = nameMatch[1].trim();
-          const id = idMatch[1];
-          devices.push({ id, name });
-        }
-      }
-
-      resolve(devices);
+  try {
+    const proc = Bun.spawn({
+      cmd: ['xcrun', 'simctl', 'list', 'devices', 'available']
     });
-    proc.on('error', () => resolve([]));
-  });
+    const output = await new Response(proc.stdout).text();
+    if (!output) return [];
+
+    const devices: Device[] = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+      if (!line.includes('Booted')) continue;
+
+      const nameMatch = line.match(/([^\(]+)\s+\(/);
+      const idMatch = line.match(/([A-F0-9-]{36})/);
+
+      if (nameMatch && idMatch) {
+        const name = nameMatch[1].trim();
+        const id = idMatch[1];
+        devices.push({ id, name });
+      }
+    }
+
+    return devices;
+  } catch {
+    return [];
+  }
 }
 
 export async function getIOSSimulators(): Promise<string[]> {
@@ -38,23 +36,23 @@ export async function getIOSSimulators(): Promise<string[]> {
 }
 
 export async function resetIOSSimulator(deviceId: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('xcrun', ['simctl', 'erase', deviceId], { timeout: SIMCTL_TIMEOUT_MS });
-    proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Failed to erase simulator: exit code ${code}`));
-    });
-    proc.on('error', reject);
+  const proc = Bun.spawn({
+    cmd: ['xcrun', 'simctl', 'erase', deviceId]
   });
+  const code = await proc.exited;
+  if (code !== 0) {
+    throw new Error(`Failed to erase simulator: exit code ${code}`);
+  }
 }
 
 export async function captureIOSLogs(_deviceId: string): Promise<string> {
-  return new Promise((resolve) => {
-    const proc = spawn('xcrun', ['simctl', 'diagnose'], { timeout: SIMCTL_TIMEOUT_MS });
-    let output = '';
-
-    proc.stdout?.on('data', (data) => { output += data.toString(); });
-    proc.on('close', () => resolve(output));
-    proc.on('error', () => resolve(''));
-  });
+  try {
+    const proc = Bun.spawn({
+      cmd: ['xcrun', 'simctl', 'diagnose']
+    });
+    const output = await new Response(proc.stdout).text();
+    return output || '';
+  } catch {
+    return '';
+  }
 }

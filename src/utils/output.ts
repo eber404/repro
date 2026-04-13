@@ -1,16 +1,14 @@
 import { ReproContext } from '@/context';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
+
+const { mkdirSync, writeFileSync } = require('fs');
 
 const HASH_LENGTH = 8;
 
-export function generateReport(ctx: ReproContext): void {
+export async function generateReport(ctx: ReproContext): Promise<void> {
   const hash = ctx.bug.replace(/[^a-z0-9]/gi, '').substring(0, HASH_LENGTH);
-  const reportDir = join(ctx.flowDir, hash);
+  const reportDir = `${ctx.flowDir}/${hash}`;
 
-  if (!existsSync(reportDir)) {
-    mkdirSync(reportDir, { recursive: true });
-  }
+  mkdirSync(reportDir, { recursive: true });
 
   const reproAttempts = ctx.reproduced ? 1 : 0;
   const totalAttempts = ctx.attempt;
@@ -21,11 +19,11 @@ export function generateReport(ctx: ReproContext): void {
     flowFile: ctx.flowFile,
     hypothesis: ctx.plan?.hypothesis || 'Unknown',
     attempts: ctx.attempt,
-    screenshotsDir: join(reportDir, 'screenshots'),
-    logsDir: join(reportDir, 'logs')
+    screenshotsDir: `${reportDir}/screenshots`,
+    logsDir: `${reportDir}/logs`
   };
 
-  const reportFile = join(reportDir, 'report.json');
+  const reportFile = `${reportDir}/report.json`;
   writeFileSync(reportFile, JSON.stringify(report, null, 2));
 
   console.log(`\n📄 Report saved to: ${reportFile}`);

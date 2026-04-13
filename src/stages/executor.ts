@@ -1,6 +1,6 @@
 import { ReproContext } from '@/context';
-import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+
+const { existsSync } = require('fs');
 
 const EXECUTOR_TIMEOUT_MS = 300_000;
 
@@ -22,46 +22,50 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  return new Promise((resolve) => {
-    const args = [
-      '--platform', ctx.platform,
-      '--udid', ctx.deviceId,
-      'test',
-      ctx.flowFile,
-      '--no-reinstall-driver'
-    ];
+  const args = [
+    '--platform', ctx.platform,
+    '--udid', ctx.deviceId,
+    'test',
+    ctx.flowFile,
+    '--no-reinstall-driver'
+  ];
 
-    const proc = spawn(ctx.maestroPath, args);
-
-    const timer = setTimeout(() => {
-      proc.kill();
-      ctx.error = `Executor timed out after ${EXECUTOR_TIMEOUT_MS}ms`;
-      resolve(ctx);
-    }, EXECUTOR_TIMEOUT_MS);
-
-    let output = '';
-
-    proc.stdout?.on('data', (data) => {
-      const text = data.toString();
-      output += text;
-      process.stdout.write(text);
-    });
-    proc.stderr?.on('data', (data) => { output += data.toString(); });
-
-    proc.on('close', (code) => {
-      clearTimeout(timer);
-      ctx.executionResult = {
-        success: code === 0,
-        output,
-        screenshots: []
-      };
-      resolve(ctx);
-    });
-
-    proc.on('error', (err) => {
-      clearTimeout(timer);
-      ctx.error = `Executor failed: ${err.message}`;
-      resolve(ctx);
-    });
+  const proc = Bun.spawn({
+    cmd: [ctx.maestroPath, ...args],
+    stdout: 'pipe',
+    stderr: 'pipe'
   });
+
+  let output = '';
+
+  proc.stdout?.pipeTo(new WritableStream({
+    write(chunk) {
+      const text = new TextDecoder().decode(chunk);
+      output += text;
+      console.log(text);
+    }
+  }));
+
+  proc.stderr?.pipeTo(new WritableStream({
+    write(chunk) {
+      const text = new TextDecoder().decode(chunk);
+      output += text;
+    }
+  }));
+
+  const timeoutTimer = setTimeout(() => {
+    proc.kill();
+    ctx.error = `Executor timed out after ${EXECUTOR_TIMEOUT_MS}ms`;
+  }, EXECUTOR_TIMEOUT_MS);
+
+  const code = await proc.exited;
+  clearTimeout(timeoutTimer);
+
+  ctx.executionResult = {
+    success: code === 0,
+    output,
+    screenshots: []
+  };
+
+  return ctx;
 }

@@ -6,6 +6,7 @@
     "strict": true,
     "outDir": "./dist",
     "rootDir": "./src",
+    "types": ["bun"],
     "paths": {
       "@/*": ["./src/*"]
     }
