@@ -16,6 +16,15 @@ export interface ReproContext {
   refinement: Plan | null;
   error: string | null;
   attempt: number;
+  credentials?: {
+    email?: string;
+    password?: string;
+  };
+  loginFlow?: {
+    emailField: string;
+    passwordField: string;
+    loginButton: string;
+  };
 }
 
 export interface Device {
@@ -43,11 +52,13 @@ export interface Plan {
 }
 
 export interface PlanStep {
-  action: 'tap' | 'input' | 'swipe' | 'pressKey' | 'assert';
+  action: string;
   element?: string;
   text?: string;
   direction?: string;
   key?: string;
+  target?: string;
+  value?: string;
 }
 
 export interface UIElement {
