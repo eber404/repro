@@ -1,6 +1,7 @@
 export interface ReproContext {
   bug: string;
   appPath: string;
+  deviceId: string | null;
   platform: 'android' | 'ios';
   maxRetries: number;
   flowDir: string;
@@ -14,6 +15,12 @@ export interface ReproContext {
   refinement: Plan | null;
   error: string | null;
   attempt: number;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  status?: string;
 }
 
 export interface ExecutionResult {

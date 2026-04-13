@@ -1,22 +1,37 @@
 import { spawn } from 'child_process';
+import type { Device } from '@/context';
 
 const SIMCTL_TIMEOUT_MS = 30_000;
 
-export async function getIOSSimulators(): Promise<string[]> {
+export async function listIOSSimulators(): Promise<Device[]> {
   return new Promise((resolve) => {
     const proc = spawn('xcrun', ['simctl', 'list', 'devices', 'available'], { timeout: SIMCTL_TIMEOUT_MS });
     let output = '';
 
     proc.stdout?.on('data', (data) => { output += data.toString(); });
     proc.on('close', () => {
-      const simulators = output
-        .split('\n')
-        .filter(line => line.includes('iPhone') || line.includes('iPad'))
-        .map(line => line.split('(')[0].trim());
-      resolve(simulators);
+      const devices: Device[] = [];
+      const lines = output.split('\n');
+
+      for (const line of lines) {
+        if (!line.includes('iPhone') && !line.includes('iPad')) continue;
+
+        const name = line.split('(')[0].trim();
+        const idMatch = line.match(/--device\s+([A-F0-9-]+)/i);
+        const id = idMatch?.[1] || name;
+
+        if (name) devices.push({ id, name });
+      }
+
+      resolve(devices);
     });
     proc.on('error', () => resolve([]));
   });
+}
+
+export async function getIOSSimulators(): Promise<string[]> {
+  const devices = await listIOSSimulators();
+  return devices.map(d => d.id);
 }
 
 export async function resetIOSSimulator(deviceId: string): Promise<void> {

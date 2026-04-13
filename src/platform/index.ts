@@ -1,2 +1,2 @@
-export { getAndroidDevices, clearAndroidAppData, captureAndroidLogs } from './android';
-export { getIOSSimulators, resetIOSSimulator, captureIOSLogs } from './ios';
+export { listAndroidDevices, getAndroidDevices, clearAndroidAppData, captureAndroidLogs } from './android';
+export { listIOSSimulators, getIOSSimulators, resetIOSSimulator, captureIOSLogs } from './ios';

@@ -2,6 +2,9 @@ import { loadConfig } from '@/config';
 import type { Config } from '@/config';
 import { runPipeline } from '@/pipeline';
 import { generateReport, printSummary } from '@/utils/output';
+import { listAndroidDevices } from '@/platform/android';
+import { listIOSSimulators } from '@/platform/ios';
+import type { Device } from '@/context';
 
 const RADIX = 10;
 
@@ -34,6 +37,29 @@ function parseArgs(args: string[]): { bug: string; overrides: Partial<Config> } 
   return { bug: bug || '', overrides };
 }
 
+async function selectDevice(platform: 'android' | 'ios'): Promise<string | null> {
+  console.log(`\n📱 ${platform === 'android' ? 'Android devices' : 'iOS simulators'}:`);
+
+  const devices: Device[] = platform === 'android'
+    ? await listAndroidDevices()
+    : await listIOSSimulators();
+
+  if (devices.length === 0) {
+    console.log(`   No ${platform} devices found. Make sure an emulator is running.`);
+    return null;
+  }
+
+  for (let i = 0; i < devices.length; i++) {
+    const status = devices[i].status ? ` (${devices[i].status})` : '';
+    console.log(`   ${i + 1}. ${devices[i].name}${status}`);
+  }
+
+  const device = devices[0];
+  console.log(`\n✅ Using device: ${device.name}`);
+
+  return device.id;
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -57,14 +83,29 @@ async function main() {
 
   const config = loadConfig(overrides);
 
+  if (!config.appPath) {
+    console.error('Error: App path required. Set in config or pass --app');
+    console.error('Usage: repro "bug" --app ./app.apk');
+    process.exit(1);
+  }
+
+  const deviceId = await selectDevice(config.platform);
+
+  if (!deviceId) {
+    console.error('Error: No device selected or available');
+    process.exit(1);
+  }
+
   console.log(`🔍 repro: "${bug}"`);
   console.log(`   app: ${config.appPath}`);
+  console.log(`   device: ${deviceId}`);
   console.log(`   platform: ${config.platform}`);
   console.log(`   max retries: ${config.maxRetries}`);
 
   const ctx = await runPipeline({
     bug,
     appPath: config.appPath,
+    deviceId,
     platform: config.platform,
     maxRetries: config.maxRetries,
     flowDir: config.flowDir,
