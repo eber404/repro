@@ -1,105 +1,140 @@
-repro 🐛🤖
-Autonomous Bug Reproduction CLI
+# repro - Autonomous Bug Reproduction CLI
 
-repro is an AI-agent-based command-line tool that automatically reproduces bugs from vague natural language descriptions.
+**repro** is a CLI tool that automatically reproduces bugs in mobile apps using AI. Just describe the bug, and repro will find the exact steps to reproduce it.
 
-Instead of relying on manual steps—often incomplete or inaccurate—written by QA, developers, or end users, repro interprets the bug report, explores the app’s behavior (iOS/Android), manipulates the environment, and discovers the exact path needed to reproduce the issue consistently, generating reusable E2E tests in the process.
+## What it does
 
-🛑 The Problem
-Developers waste valuable time trying to reproduce vague issues such as:
+Instead of spending hours trying to figure out how to reproduce a bug, repro does it for you:
 
-“Sometimes the app crashes after login”
-“It failed when I tried to pay”
+1. Takes a bug description like *"app crashes after login when pressing back quickly"*
+2. Launches the app on a simulator/emulator
+3. Uses AI to explore different scenarios
+4. Finds the exact steps to reproduce the bug
+5. Generates a reusable test flow you can run anytime
 
-Even when reproduction steps exist, they may miss critical details about state, network conditions, or timing. The result is frustration, lost time, and bugs being closed as “Cannot Reproduce.”
+## Requirements
 
-💡 The Solution
-repro turns guesswork into autonomous investigation. You provide a simple description, and it runs an iterative process that searches the space of UI interactions and network conditions:
+- **Maestro** - Install from [maestro.dev](https://maestro.dev) or use the bundled version in `maestro/` directory
+- **iOS Simulator** (for iOS apps) or **Android Emulator** (for Android apps)
+- **AI Agent** - Currently supports: **gemini**, claude, codex, opencode
 
-bash
-$ repro "app crashes after login when I go back quickly" --app ./build/app.apk
-What it returns:
+## Quick Start
 
-Exact human-readable reproduction steps.
+### 1. Start an emulator
 
-An executable Maestro flow (.yaml) ready to use in CI/CD.
+```bash
+# iOS
+open -a Simulator
 
-A repro rate showing consistency across runs.
+# Android
+emulator -avd <avd_name>
+```
 
-Visual evidence such as screenshots, video, and system logs.
+### 2. Create `.env` file (optional, for apps requiring login)
 
-The exact stack trace (through telemetry integration) and a root-cause hypothesis.
+```bash
+REPRO_APP_EMAIL=your@email.com
+REPRO_APP_PASSWORD=yourpassword
+```
 
-⚙️ How It Works (Architecture)
-The system does not run tests linearly. It operates as an autonomous agent loop, actively searching for the failure.
+### 3. Run repro
 
-repro is built around the following specialized modules:
+**Interactive mode:**
+```bash
+repro --interactive
+```
 
-👁️ Context Gatherer: Before guessing flows, it extracts the current app element tree (View Tree / Accessibility IDs) through Maestro so planning is grounded in the actual UI.
+**Direct mode:**
+```bash
+repro "bug description here" --device "iPhone 16e" -app "com.example.app"
+```
 
-🧠 Planner: Transforms the bug description and UI context into an exploration strategy or hypothesis.
+## Usage
 
-🛠️ Compiler: Converts the Planner’s intent into executable Maestro flows.
+```bash
+# Show help
+repro --help
 
-🧹 State & Fixture Manager: Ensures isolation between attempts by resetting state, clearing app data, or triggering reset deep links so state mutations do not break the loop.
+# Interactive mode (prompts for all options)
+repro --interactive
+repro -i
 
-⚡ Executor & Network Proxy: Runs the flows on an emulator or real device and injects network anomalies such as artificial latency or HTTP 500 responses.
+# Direct mode (all options on command line)
+repro "app crashes on login" --device "iPhone 16e" -app "com.example.app"
 
-📡 Observer: Collects visual signals, system logs (logcat / simctl), and correlates actions with telemetry events.
+# With Android
+repro "button doesn't work" --device "Android Emulator" -app "com.example.app"
+```
 
-⚖️ Evaluator: Decides, through deterministic checks or LLM reasoning, whether the original bug was successfully reproduced.
+### Environment Variables
 
-🔄 Refiner: If reproduction fails, it adjusts the strategy—for example, “try scrolling before going back”—and restarts the loop.
+| Variable | Description |
+|----------|-------------|
+| `REPRO_AGENT` | AI agent for planning (gemini, claude, codex, opencode). Default: gemini |
+| `REPRO_EVAL_AGENT` | AI agent for evaluation. Default: same as REPRO_AGENT |
+| `REPRO_APP_EMAIL` | App login email (from .env) |
+| `REPRO_APP_PASSWORD` | App login password (from .env) |
 
-Lifecycle loop:
+## How it Works
 
-Bug ➔ Context ➔ Plan ➔ Reset State ➔ Execute ➔ Observe ➔ Evaluate ➔ Refine ➔ Repeat
+```
+Bug Description → Gather UI Context → AI Planning → Execute Flow → Observe → Evaluate → (Repeat if needed)
+```
 
-🚀 Key Features & Differentiators
-Autonomous Path Discovery: It does not just execute predefined tests. It dynamically discovers how to break the app.
+1. **Context Gatherer** - Gets the app's current screen and UI elements
+2. **AI Planner** - Creates a plan to reproduce the bug
+3. **Compiler** - Generates a Maestro YAML flow
+4. **Executor** - Runs the flow on the device
+5. **Observer** - Captures logs and screenshots
+6. **Evaluator** - Determines if the bug was reproduced
+7. **Refiner** - Adjusts strategy if reproduction failed
 
-Smart LLM Routing: Optimized for cost and speed. It uses stronger models only for the Planner and Refiner, while relying on faster heuristics or lighter models for the Observer and Evaluator.
+## Output
 
-Declarative by Design: Built on top of Maestro CLI, generating robust YAML flows instead of fragile coordinate-based scripts.
+After running, repro creates:
 
-Network and Latency Manipulation: It can simulate slow connections or API failures to expose bugs that do not appear in ideal development environments.
+```
+flows/
+└── 2026-04-13_10-30-00/
+    └── attempt-1/
+        ├── flow.yaml           # Executable Maestro flow
+        ├── report.json         # Detailed report
+        └── screenshots/        # Evidence screenshots
+```
 
-Sentry / Crashlytics Integration: It correlates the emulator crash timestamp with the remote stack trace, giving developers not only the failure video, but the exact line of code involved.
+## Examples
 
-💻 Example Output
-When repro successfully finds the bug, it generates a ready-to-run test artifact like this:
+**Login bug:**
+```bash
+repro "user gets redirected to login twice after logging out" --device "iPhone 16e" -app "com.example.app"
+```
 
-text
+**Crash on navigation:**
+```bash
+repro "app crashes when going back from settings" --device "Android Emulator" -app "com.example.app"
+```
 
-# repro-generated: crash-login-fast-back.yaml
+**Payment issue:**
+```bash
+repro "payment fails when card is expired" --device "iPhone 16e" -app "com.example.app"
+```
 
-# Repro Rate: 4/5 (80% consistency)
+## Troubleshooting
 
-# Hypothesis: Race condition in React Navigation unmount when auth state is pending.
+**No devices found:**
+- Make sure an emulator/simulator is running
+- iOS: `open -a Simulator`
+- Android: Start an AVD from Android Studio or command line
 
-## appId: com.example.app
+**Login detection fails:**
+- Ensure `.env` file has correct `REPRO_APP_EMAIL` and `REPRO_APP_PASSWORD`
+- The app must show a login screen on fresh start
 
-- clearState: true
-- launchApp
-- tapOn: "Email Input"
-- inputText: "test@repro.dev"
-- tapOn: "Password Input"
-- inputText: "password123"
-- tapOn: "Login Button"
-- assertVisible: "Loading Indicator"
+**Maestro errors:**
+- Check that Maestro CLI is installed: `maestro --version`
+- Or use the bundled version in `maestro/` directory
 
-# Repro discovery: The crash only occurs if back is pressed within 200ms of loading
+## Learn More
 
-- pressKey: back
-  🔧 Use Cases
-  repro is flexible and can be integrated into multiple stages of the development lifecycle:
-
-Local CLI: Used directly by developers to investigate Jira tickets.
-
-Pull Request / Issue Bot: Watches GitHub issues, attempts reproduction in the cloud, and comments back with the generated video and YAML flow when successful.
-
-Code-Fixing Agents: Works as a validation layer for autonomous coding agents that not only identify the bug, but also verify whether a generated fix actually resolves the problematic flow.
-
-Built to transform vague bug reports into reproducible, actionable, and fixable scenarios.
-
-If you want, I can also turn this into a more polished GitHub-style README with sections like Installation, Usage, CLI Options, Roadmap, and Contributing.
+- [Maestro Documentation](https://maestro.dev)
+- [AGENTS.md](./AGENTS.md) - Technical architecture details

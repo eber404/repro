@@ -8,11 +8,45 @@ Rather than reinventing the LLM execution layer, repro delegates complex reasoni
 
 Initially, repro supports native routing to the following locally installed AI CLIs:
 
-Claude Code (claude)
+- **Gemini CLI** (gemini) - Default
+- Claude Code (claude)
+- Codex (codex)
+- OpenCode (opencode)
 
-Codex (codex)
+---
 
-OpenCode (opencode)
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REPRO_AGENT` | `gemini` | Default agent for Planner and Refiner (gemini, claude, codex, opencode) |
+| `REPRO_EVAL_AGENT` | `REPRO_AGENT` | Agent specifically for Evaluator |
+| `REPRO_APP_EMAIL` | - | App login email (loaded from `.env`) |
+| `REPRO_APP_PASSWORD` | - | App login password (loaded from `.env`) |
+
+### Agent Selection
+
+```bash
+# Use Gemini (default)
+REPRO_AGENT=gemini repro
+
+# Use Claude for planning, Gemini for evaluation
+REPRO_AGENT=claude REPRO_EVAL_AGENT=gemini repro
+
+# Use Claude for everything
+REPRO_AGENT=claude repro
+```
+
+### App Credentials
+
+Create a `.env` file in the project root:
+
+```bash
+REPRO_APP_EMAIL=your@email.com
+REPRO_APP_PASSWORD=yourpassword
+```
+
+These credentials are passed to the Planner when the app requires authentication.
 
 When repro needs to plan a test or evaluate a failure, it constructs a highly optimized prompt containing the bug description, UI View Tree, and logs, and pipes it directly into your preferred CLI. It then parses the standard output (stdout) to continue the autonomous loop.
 
