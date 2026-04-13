@@ -22,6 +22,12 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
+  const networkSetupResult = await applyNetworkConditionsIfRequested(ctx);
+  if (networkSetupResult) {
+    ctx.error = networkSetupResult;
+    return ctx;
+  }
+
   const args = [
     '--platform', ctx.platform,
     '--udid', ctx.deviceId,
@@ -68,4 +74,17 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
   };
 
   return ctx;
+}
+
+async function applyNetworkConditionsIfRequested(ctx: ReproContext): Promise<string | null> {
+  const network = ctx.plan?.network;
+  if (!network) {
+    return null;
+  }
+
+  if (network.latencyMs === undefined && network.forceHttpStatus === undefined) {
+    return null;
+  }
+
+  return 'Network conditions requested by plan but network proxy integration is not configured';
 }

@@ -8,8 +8,8 @@ Rather than reinventing the LLM execution layer, repro delegates complex reasoni
 
 Initially, repro supports native routing to the following locally installed AI CLIs:
 
-- **Gemini CLI** (gemini) - Default
-- Claude Code (claude)
+- **Claude Code** (claude) - Default
+- Gemini CLI (gemini)
 - Codex (codex)
 - OpenCode (opencode)
 
@@ -19,7 +19,7 @@ Initially, repro supports native routing to the following locally installed AI C
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REPRO_AGENT` | `gemini` | Default agent for Planner and Refiner (gemini, claude, codex, opencode) |
+| `REPRO_AGENT` | `claude` | Default agent for Planner and Refiner (claude, gemini, codex, opencode) |
 | `REPRO_EVAL_AGENT` | `REPRO_AGENT` | Agent specifically for Evaluator |
 | `REPRO_APP_EMAIL` | - | App login email (loaded from `.env`) |
 | `REPRO_APP_PASSWORD` | - | App login password (loaded from `.env`) |
@@ -27,14 +27,14 @@ Initially, repro supports native routing to the following locally installed AI C
 ### Agent Selection
 
 ```bash
-# Use Gemini (default)
-REPRO_AGENT=gemini repro
+# Use Claude (default)
+REPRO_AGENT=claude repro
 
 # Use Claude for planning, Gemini for evaluation
 REPRO_AGENT=claude REPRO_EVAL_AGENT=gemini repro
 
-# Use Claude for everything
-REPRO_AGENT=claude repro
+# Use Gemini for planning and evaluation
+REPRO_AGENT=gemini repro
 ```
 
 ### App Credentials

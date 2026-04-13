@@ -26,7 +26,7 @@ Direct mode examples:
   repro "crash on launch" --device "Android Emulator" -app com.example.app
 
 Environment variables:
-  REPRO_AGENT=gemini     Agent for planning (gemini, claude, codex, opencode)
+  REPRO_AGENT=claude     Agent for planning (claude, gemini, codex, opencode)
   REPRO_EVAL_AGENT=...   Separate agent for evaluation
   REPRO_APP_EMAIL=...    App email (set in .env)
   REPRO_APP_PASSWORD=... App password (set in .env)
@@ -190,12 +190,13 @@ async function runInteractive(): Promise<void> {
 
     const ctx = await runPipeline({
       bug,
-      appPath: run.appId,
+      appId: run.appId,
       deviceId: run.deviceId,
       platform: run.platform,
       maxRetries,
       flowDir: config.flowDir,
       resetStrategy: config.resetStrategy,
+      resetDeepLink: config.resetDeepLink,
       maestroPath: DEFAULT_MAESTRO_PATH,
       uiTree: null,
       plan: null,
@@ -299,12 +300,13 @@ async function runDirect(bug: string, deviceName: string, appId: string): Promis
 
   const ctx = await runPipeline({
     bug,
-    appPath: appId,
+    appId,
     deviceId: device.id,
     platform: device.platform,
     maxRetries: DEFAULT_RETRIES,
     flowDir: config.flowDir,
     resetStrategy: config.resetStrategy,
+    resetDeepLink: config.resetDeepLink,
     maestroPath: DEFAULT_MAESTRO_PATH,
     uiTree: null,
     plan: null,

@@ -23,10 +23,39 @@ export async function evaluate(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
-  const prompt = `Bug description: "${ctx.bug}"
-Execution result: ${ctx.executionResult.success ? 'SUCCESS' : 'FAILURE'}
-Execution output: ${ctx.executionResult.output}
-Device logs: ${ctx.executionReport.logs}
+  const prompt = buildEvaluatorPrompt(ctx);
+
+  try {
+    const result = await spawnAgent(prompt, EVAL_AGENT as 'gemini' | 'claude' | 'codex' | 'opencode', EVAL_TIMEOUT_MS);
+    const jsonText = extractJson(result);
+    const parsed = JSON.parse(jsonText);
+    ctx.reproduced = parsed.reproduced;
+    if (typeof parsed.reason === 'string') {
+      ctx.executionReport.anomalies = [...ctx.executionReport.anomalies, `evaluation: ${parsed.reason}`];
+    }
+  } catch (err) {
+    ctx.error = `Eval agent failed: ${err}`;
+  }
+
+  return ctx;
+}
+
+export function buildEvaluatorPrompt(ctx: ReproContext): string {
+  const executionResult = ctx.executionResult;
+  const executionReport = ctx.executionReport;
+  if (!executionResult || !executionReport) {
+    throw new Error('buildEvaluatorPrompt requires executionResult and executionReport');
+  }
+
+  return `Bug description: "${ctx.bug}"
+Execution result: ${executionResult.success ? 'SUCCESS' : 'FAILURE'}
+Execution output: ${executionResult.output}
+Execution report timestamp: ${executionReport.timestamp}
+Execution report log excerpt:
+${executionReport.logExcerpt}
+Execution report anomalies: ${executionReport.anomalies.join(', ') || 'none'}
+Execution report screenshots: ${executionReport.screenshots.join(', ') || 'none'}
+Execution report flow file: ${executionReport.flowFile}
 
 Analyze the execution and determine if the bug was reproduced.
 
@@ -34,16 +63,4 @@ CRITICAL: Response must be ONLY valid JSON, no markdown formatting:
 {"reproduced": true, "reason": "brief explanation of why bug was or wasn't reproduced"}
 
 Do NOT use YAML. Do NOT use markdown code blocks. Return only raw JSON.`;
-
-  try {
-    const result = await spawnAgent(prompt, EVAL_AGENT as 'gemini' | 'claude' | 'codex' | 'opencode', EVAL_TIMEOUT_MS);
-    const jsonText = extractJson(result);
-    const parsed = JSON.parse(jsonText);
-    ctx.reproduced = parsed.reproduced;
-  } catch (err) {
-    ctx.error = `Eval agent failed: ${err}`;
-    ctx.reproduced = !ctx.executionResult.success;
-  }
-
-  return ctx;
 }

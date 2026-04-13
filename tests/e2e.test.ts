@@ -4,11 +4,14 @@ import { runPipeline } from '@/pipeline';
 test('pipeline runs without crashing', async () => {
   const ctx = {
     bug: 'test bug',
-    appPath: '/fake/path.app',
+    appId: 'com.example.app',
+    deviceId: null,
     platform: 'android' as const,
     maxRetries: 1,
     flowDir: './test-flows',
     resetStrategy: 'clear-app-data' as const,
+    resetDeepLink: 'app://dev/reset-state',
+    maestroPath: '/tmp/maestro',
     uiTree: null,
     plan: null,
     flowFile: null,

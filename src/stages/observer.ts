@@ -3,6 +3,7 @@ import { ReproContext } from '@/context';
 const { mkdirSync, writeFileSync } = require('fs');
 
 const HASH_LENGTH = 8;
+const LOG_EXCERPT_MAX_LENGTH = 4_000;
 
 export async function observe(ctx: ReproContext): Promise<ReproContext> {
   console.log('   📡 Observing execution...');
@@ -17,10 +18,14 @@ export async function observe(ctx: ReproContext): Promise<ReproContext> {
     const logs = await captureDeviceLogs(ctx.platform, ctx.deviceId);
     const logFile = `${logsDir}/device.log`;
     writeFileSync(logFile, logs);
+    const logExcerpt = logs.slice(-LOG_EXCERPT_MAX_LENGTH);
+    const anomalies = detectAnomalies(logs);
 
     ctx.executionReport = {
       timestamp: new Date().toISOString(),
-      logs: logFile,
+      logFile,
+      logExcerpt,
+      anomalies,
       screenshots: ctx.executionResult?.screenshots || [],
       flowFile: ctx.flowFile || ''
     };
@@ -50,4 +55,23 @@ async function captureDeviceLogs(platform: 'android' | 'ios', deviceId: string |
   } catch {
     return 'Failed to capture logs';
   }
+}
+
+function detectAnomalies(logs: string): string[] {
+  const lowered = logs.toLowerCase();
+  const anomalies: string[] = [];
+
+  if (lowered.includes('fatal exception') || lowered.includes('fatal error')) {
+    anomalies.push('possible-crash');
+  }
+
+  if (lowered.includes('anr')) {
+    anomalies.push('possible-freeze');
+  }
+
+  if (lowered.includes('http 500') || lowered.includes('status=500')) {
+    anomalies.push('http-500');
+  }
+
+  return anomalies;
 }

@@ -8,7 +8,7 @@ export interface AgentResult {
   exitCode: number;
 }
 
-function buildArgs(agent: AgentType, prompt: string, files?: string[]): string[] {
+export function buildArgs(agent: AgentType, prompt: string, files?: string[]): string[] {
   const baseArgs: string[] = [];
   
   switch (agent) {
@@ -51,7 +51,6 @@ export async function spawnAgent(
   const timer = setTimeout(() => {
     timedOut = true;
     proc.kill();
-    throw new Error(`Agent ${agent} timed out after ${timeoutMs}ms`);
   }, timeoutMs);
 
   const [stdout, stderr, code] = await Promise.all([
@@ -61,7 +60,9 @@ export async function spawnAgent(
   ]);
 
   clearTimeout(timer);
-  if (timedOut) return '';
+  if (timedOut) {
+    throw new Error(`Agent ${agent} timed out after ${timeoutMs}ms`);
+  }
 
   if (code !== 0) {
     throw new Error(`Agent ${agent} exited with code ${code}: ${stderr}`);

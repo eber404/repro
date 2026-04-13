@@ -1,11 +1,12 @@
 export interface ReproContext {
   bug: string;
-  appPath: string;
+  appId: string;
   deviceId: string | null;
   platform: 'android' | 'ios';
   maxRetries: number;
   flowDir: string;
   resetStrategy: 'clear-app-data' | 'deep-link';
+  resetDeepLink?: string;
   maestroPath: string;
   uiTree: object | null;
   plan: Plan | null;
@@ -41,7 +42,9 @@ export interface ExecutionResult {
 
 export interface ExecutionReport {
   timestamp: string;
-  logs: string;
+  logFile: string;
+  logExcerpt: string;
+  anomalies: string[];
   screenshots: string[];
   flowFile: string;
 }
@@ -49,6 +52,10 @@ export interface ExecutionReport {
 export interface Plan {
   steps: PlanStep[];
   hypothesis?: string;
+  network?: {
+    latencyMs?: number;
+    forceHttpStatus?: number;
+  };
 }
 
 export interface PlanStep {

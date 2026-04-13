@@ -1,1 +1,1 @@
-export { generateReport, printSummary } from './output';
+export { generateReport, printSummary } from '@/utils/output';

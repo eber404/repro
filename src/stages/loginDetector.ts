@@ -12,11 +12,11 @@ interface UIElement {
 
 async function launchAppAndWait(ctx: ReproContext): Promise<void> {
   console.log('   📝 Creating detect_login_flow.yaml...');
-  const detectFlow = `appId: ${ctx.appPath}
+  const detectFlow = `appId: ${ctx.appId}
 platform: ${ctx.platform}
 ---
 - launchApp:
-    appId: ${ctx.appPath}
+    appId: ${ctx.appId}
     clearState: true
     clearKeychain: true
 - waitForAnimationToEnd:

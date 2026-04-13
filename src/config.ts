@@ -2,12 +2,13 @@ const { existsSync, readFileSync } = require('fs');
 const { homedir } = require('os');
 
 export interface Config {
-  appPath: string;
+  appId: string;
   platform: 'android' | 'ios';
   maestroSdk: boolean;
   maxRetries: number;
   flowDir: string;
   resetStrategy: 'clear-app-data' | 'deep-link';
+  resetDeepLink: string;
   credentials?: {
     email?: string;
     password?: string;
@@ -15,12 +16,13 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  appPath: '',
+  appId: '',
   platform: 'android',
   maestroSdk: true,
   maxRetries: 5,
   flowDir: './flows',
   resetStrategy: 'clear-app-data',
+  resetDeepLink: 'app://dev/reset-state',
   credentials: {}
 };
 

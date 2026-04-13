@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test';
-import { spawnAgent } from '@/agents/cli';
+import { buildArgs } from '@/agents/cli';
 
-test('spawnAgent returns output from echo', async () => {
-  const result = await spawnAgent('hello world', 'claude');
-  expect(result).toContain('hello');
+test('buildArgs uses claude format with files', () => {
+  const args = buildArgs('claude', 'hello world', ['one.txt', 'two.txt']);
+  expect(args).toEqual(['--print', '--file', 'one.txt', '--file', 'two.txt', 'hello world']);
+});
+
+test('buildArgs uses gemini prompt flag', () => {
+  const args = buildArgs('gemini', 'hello world');
+  expect(args).toEqual(['--prompt', 'hello world']);
 });

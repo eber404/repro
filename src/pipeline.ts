@@ -1,7 +1,5 @@
 import { ReproContext } from '@/context';
 import { gatherContext } from '@/stages/gatherContext';
-import { detectLoginFields } from '@/stages/loginDetector';
-import { generateLoginFlow } from '@/stages/loginGenerator';
 import { plan } from '@/stages/planner';
 import { compile } from '@/stages/compiler';
 import { resetState } from '@/stages/stateManager';
@@ -12,8 +10,6 @@ import { refine } from '@/stages/refiner';
 
 const PIPELINE_STAGES = [
   gatherContext,
-  detectLoginFields,
-  generateLoginFlow,
   plan,
   compile,
   resetState,
@@ -28,6 +24,9 @@ export async function runPipeline(ctx: ReproContext): Promise<ReproContext> {
 
   for (let attempt = 1; attempt <= ctx.maxRetries; attempt++) {
     console.log(`\n📍 Attempt ${attempt}/${ctx.maxRetries}`);
+    currentCtx.error = null;
+    currentCtx.reproduced = null;
+    currentCtx.attempt = attempt;
 
     for (const stage of PIPELINE_STAGES) {
       const stageStart = Date.now();

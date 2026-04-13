@@ -18,13 +18,34 @@ export async function plan(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
+  const prompt = buildPlannerPrompt(ctx);
+
+  try {
+    const result = await spawnAgent(prompt, AGENT_ENV as 'gemini' | 'claude' | 'codex' | 'opencode', AGENT_TIMEOUT_MS);
+    const jsonText = extractJson(result);
+    ctx.plan = JSON.parse(jsonText) as Plan;
+  } catch (e) {
+    ctx.error = `Planner failed: ${(e as Error).message}`;
+  }
+
+  return ctx;
+}
+
+export function buildPlannerPrompt(ctx: ReproContext): string {
   const credentialsInfo = ctx.credentials?.email && ctx.credentials?.password
     ? `\n\nAPP CREDENTIALS (use these for login):
 - email: "${ctx.credentials.email}"
 - password: "${ctx.credentials.password}"`
     : '';
 
-  const prompt = `Bug: "${ctx.bug}"${credentialsInfo}
+  const refinementInfo = ctx.refinement
+    ? `\n\nPREVIOUS FAILED ATTEMPT CONTEXT:
+- previousPlan: ${JSON.stringify(ctx.refinement)}
+- latestExecutionSummary: ${ctx.executionResult?.output || 'none'}
+- latestEvaluation: ${ctx.reproduced === false ? 'not reproduced' : 'unknown'}`
+    : '';
+
+  return `Bug: "${ctx.bug}"${credentialsInfo}${refinementInfo}
 UI Tree: ${JSON.stringify(ctx.uiTree, null, 2)}
 
 Generate a JSON plan to reproduce this bug.
@@ -42,6 +63,10 @@ INVALID actions (do NOT use): waitForElement, navigate, assertScreenTransitionCo
 Response must be valid JSON matching this exact structure:
 {
   "hypothesis": "why this bug occurs",
+  "network": {
+    "latencyMs": 1000,
+    "forceHttpStatus": 500
+  },
   "steps": [
     {
       "action": "tap|input|swipe|pressKey|assert",
@@ -53,15 +78,7 @@ Response must be valid JSON matching this exact structure:
   ]
 }
 
+Use "network" only when the hypothesis requires network manipulation; otherwise set it to null or omit it.
+
 Return ONLY the JSON object, no markdown formatting or explanation.`;
-
-  try {
-    const result = await spawnAgent(prompt, AGENT_ENV as 'gemini' | 'claude' | 'codex' | 'opencode', AGENT_TIMEOUT_MS);
-    const jsonText = extractJson(result);
-    ctx.plan = JSON.parse(jsonText) as Plan;
-  } catch (e) {
-    ctx.error = `Planner failed: ${(e as Error).message}`;
-  }
-
-  return ctx;
 }

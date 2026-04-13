@@ -16,7 +16,7 @@ Instead of spending hours trying to figure out how to reproduce a bug, repro doe
 
 - **Maestro** - Install from [maestro.dev](https://maestro.dev) or use the bundled version in `maestro/` directory
 - **iOS Simulator** (for iOS apps) or **Android Emulator** (for Android apps)
-- **AI Agent** - Currently supports: **gemini**, claude, codex, opencode
+- **AI Agent** - Currently supports: **claude** (default), gemini, codex, opencode
 
 ## Quick Start
 
@@ -70,7 +70,7 @@ repro "button doesn't work" --device "Android Emulator" -app "com.example.app"
 
 | Variable | Description |
 |----------|-------------|
-| `REPRO_AGENT` | AI agent for planning (gemini, claude, codex, opencode). Default: gemini |
+| `REPRO_AGENT` | AI agent for planning (claude, gemini, codex, opencode). Default: claude |
 | `REPRO_EVAL_AGENT` | AI agent for evaluation. Default: same as REPRO_AGENT |
 | `REPRO_APP_EMAIL` | App login email (from .env) |
 | `REPRO_APP_PASSWORD` | App login password (from .env) |

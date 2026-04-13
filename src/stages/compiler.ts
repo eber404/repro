@@ -44,14 +44,14 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
 function generateMaestroYaml(ctx: ReproContext): string {
   let yaml = `# repro-generated: ${ctx.bug}\n`;
   yaml += `# Platform: ${ctx.platform}\n`;
-  yaml += `# App: ${ctx.appPath}\n`;
+  yaml += `# App: ${ctx.appId}\n`;
   yaml += `# Device: ${ctx.deviceId}\n\n`;
-  yaml += `appId: ${ctx.appPath}\n`;
+  yaml += `appId: ${ctx.appId}\n`;
   yaml += `platform: ${ctx.platform}\n`;
   yaml += `---\n`;
 
   yaml += `- launchApp:\n`;
-  yaml += `    appId: ${ctx.appPath}\n`;
+  yaml += `    appId: ${ctx.appId}\n`;
   yaml += `    clearState: true\n`;
   yaml += `    clearKeychain: true\n`;
 

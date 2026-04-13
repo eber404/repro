@@ -22,6 +22,7 @@ export async function refine(ctx: ReproContext): Promise<ReproContext> {
 Previous plan: ${JSON.stringify(ctx.plan)}
 Execution result: FAILURE
 Execution output: ${ctx.executionResult?.output}
+Execution report: ${JSON.stringify(ctx.executionReport)}
 
 Why didn't this plan work? Suggest a refined plan with different steps. Return JSON without markdown formatting.`;
 
