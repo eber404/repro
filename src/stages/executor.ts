@@ -24,10 +24,10 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
 
   return new Promise((resolve) => {
     const args = [
-      'test',
-      ctx.flowFile,
       '--platform', ctx.platform,
       '--udid', ctx.deviceId,
+      'test',
+      ctx.flowFile,
       '--no-reinstall-driver'
     ];
 

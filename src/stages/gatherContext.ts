@@ -13,9 +13,9 @@ export async function gatherContext(ctx: ReproContext): Promise<ReproContext> {
 
   return new Promise((resolve) => {
     const args = [
-      'hierarchy',
       '--platform', ctx.platform,
-      '--udid', ctx.deviceId
+      '--udid', ctx.deviceId,
+      'hierarchy'
     ];
 
     const proc = spawn(ctx.maestroPath, args, { timeout: MAESTRO_TIMEOUT_MS });
