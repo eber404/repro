@@ -22,10 +22,15 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
 
   let yaml = `# repro-generated: ${ctx.bug}\n`;
   yaml += `# Platform: ${ctx.platform}\n\n`;
-  yaml += `appId: ${ctx.appPath}\n\n`;
+  yaml += `appId: ${ctx.appPath}\n`;
+  yaml += `---\n`;
+  yaml += `flows:\n`;
+  yaml += `  - flow:\n`;
+  yaml += `      name: Repro flow\n`;
+  yaml += `      steps:\n`;
 
   for (const step of ctx.plan.steps) {
-    yaml += compileStepToYaml(step) + '\n';
+    yaml += `        ${compileStepToYaml(step)}\n`;
   }
 
   writeFileSync(flowFile, yaml);
