@@ -111,8 +111,8 @@ async function getHierarchy(ctx: ReproContext): Promise<UIElement[]> {
 }
 
 function detectLoginFieldsFromElements(elements: UIElement[]): { emailField: string; passwordField: string; loginButton: string } {
-  let emailField = 'Email';
-  let passwordField = 'Password';
+  let emailField: string | null = null;
+  let passwordField: string | null = null;
   let loginButton = 'Sign In';
 
   const emailPatterns = ['email', 'usuario', 'username', 'user', 'e-mail', 'login'];
@@ -136,7 +136,11 @@ function detectLoginFieldsFromElements(elements: UIElement[]): { emailField: str
     }
   }
 
-  return { emailField, passwordField, loginButton };
+  return {
+    emailField: emailField || 'Email',
+    passwordField: passwordField || 'Password',
+    loginButton
+  };
 }
 
 export async function detectLoginFields(ctx: ReproContext): Promise<ReproContext> {

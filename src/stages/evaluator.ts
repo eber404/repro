@@ -1,7 +1,9 @@
 import { ReproContext } from '@/context';
 import { spawnAgent } from '@/agents/cli';
 
-const EVAL_AGENT = process.env.REPRO_EVAL_AGENT || process.env.REPRO_AGENT || 'claude';
+const { readFileSync } = require('fs');
+
+const EVAL_AGENT = process.env.REPRO_EVAL_AGENT || process.env.REPRO_AGENT || 'gemini';
 const EVAL_TIMEOUT_MS = 60_000;
 
 function extractJson(text: string): string {
@@ -23,10 +25,19 @@ export async function evaluate(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
+  let deviceLogs = '';
+  try {
+    if (ctx.executionReport.logs) {
+      deviceLogs = readFileSync(ctx.executionReport.logs, 'utf-8') || '';
+    }
+  } catch {
+    deviceLogs = '';
+  }
+
   const prompt = `Bug description: "${ctx.bug}"
 Execution result: ${ctx.executionResult.success ? 'SUCCESS' : 'FAILURE'}
 Execution output: ${ctx.executionResult.output}
-Device logs: ${ctx.executionReport.logs}
+Device logs: ${deviceLogs}
 
 Analyze the execution and determine if the bug was reproduced.
 

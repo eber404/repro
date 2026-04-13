@@ -17,7 +17,8 @@ test('pipeline runs without crashing', async () => {
     reproduced: null,
     refinement: null,
     error: null,
-    attempt: 1
+    attempt: 1,
+    maestroPath: '/fake/maestro'
   };
 
   const result = await runPipeline(ctx);
