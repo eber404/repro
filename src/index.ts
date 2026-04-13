@@ -7,70 +7,7 @@ import { listIOSSimulators } from '@/platform/ios';
 import type { Device } from '@/context';
 
 const RADIX = 10;
-
-const HELP_TEXT = `
-repro - Autonomous Bug Reproduction CLI
-
-Usage:
-  repro "bug description"          Use config defaults
-  repro "bug" --app ./app.apk     Override app path
-  repro "bug" --device emulator-5554  Override device ID
-  repro --help                    Show this help
-  repro --version                 Show version
-
-Configuration:
-  Set defaults in ~/.repro/config.json or ./repro.config.json
-`;
-
-const VERSION = 'repro v0.1.0';
-
-function parseArgs(args: string[]): { bug: string; overrides: Partial<Config>; deviceId: string | null } {
-  const overrides: Partial<Config> = {};
-  let deviceId: string | null = null;
-
-  const bug = args.find(arg => !arg.startsWith('--'));
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--app' && i + 1 < args.length) overrides.appPath = args[++i];
-    else if (arg === '--retries' && i + 1 < args.length) overrides.maxRetries = parseInt(args[++i], RADIX);
-    else if (arg === '--platform' && i + 1 < args.length) overrides.platform = args[++i] as 'android' | 'ios';
-    else if (arg === '--device' && i + 1 < args.length) deviceId = args[++i];
-  }
-
-  return { bug: bug || '', overrides, deviceId };
-}
-
-async function selectDevice(platform: 'android' | 'ios'): Promise<string | null> {
-  console.log(`\n📱 ${platform === 'android' ? 'Android devices' : 'iOS simulators'}:`);
-
-  const devices: Device[] = platform === 'android'
-    ? await listAndroidDevices()
-    : await listIOSSimulators();
-
-  if (devices.length === 0) {
-    console.log(`   No ${platform} devices found. Make sure an emulator is running.`);
-    return null;
-  }
-
-  for (let i = 0; i < devices.length; i++) {
-    const status = devices[i].status ? ` (${devices[i].status})` : '';
-    console.log(`   ${i + 1}. ${devices[i].name}${status}`);
-  }
-
-  const choice = await question(`\nSelect device (1-${devices.length})`);
-
-  const index = parseInt(choice, RADIX) - 1;
-
-  if (isNaN(index) || index < 0 || index >= devices.length) {
-    console.log(`   Invalid selection, using first device: ${devices[0].name}`);
-    return devices[0].id;
-  }
-
-  console.log(`   ✅ Using device: ${devices[index].name}`);
-
-  return devices[index].id;
-}
+const DEFAULT_RETRIES = 5;
 
 async function question(prompt: string): Promise<string> {
   return new Promise((resolve) => {
@@ -81,54 +18,85 @@ async function question(prompt: string): Promise<string> {
   });
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+async function selectDevice(platform: 'android' | 'ios'): Promise<string | null> {
+  console.log(`\n📱 ${platform === 'android' ? 'Android devices' : 'iOS simulators'}:\n`);
 
-  if (args.includes('--help') || args.includes('-h')) {
-    console.log(HELP_TEXT);
-    return;
+  const devices: Device[] = platform === 'android'
+    ? await listAndroidDevices()
+    : await listIOSSimulators();
+
+  if (devices.length === 0) {
+    console.log(`   ❌ No ${platform} devices found. Make sure an emulator is running.`);
+    return null;
   }
 
-  if (args.includes('--version') || args.includes('-v')) {
-    console.log(VERSION);
-    return;
+  for (let i = 0; i < devices.length; i++) {
+    const status = devices[i].status ? ` (${devices[i].status})` : '';
+    console.log(`   ${i + 1}. ${devices[i].name}${status}`);
   }
 
-  const { bug, overrides, deviceId: cliDeviceId } = parseArgs(args);
+  const choice = await question(`\n🔧 Select device (1-${devices.length})`);
+  const index = parseInt(choice, RADIX) - 1;
 
+  if (isNaN(index) || index < 0 || index >= devices.length) {
+    console.log(`   ⚠️  Invalid selection, using first device: ${devices[0].name}`);
+    return devices[0].id;
+  }
+
+  console.log(`   ✅ Selected: ${devices[index].name}`);
+  return devices[index].id;
+}
+
+async function selectPlatform(): Promise<'android' | 'ios'> {
+  console.log('\n📲 Select platform:\n   1. Android\n   2. iOS');
+  const choice = await question('\n🔧 Platform (1/2)');
+  return choice === '2' ? 'ios' : 'android';
+}
+
+async function runInteractive(): Promise<void> {
+  console.log('\n🔍 repro - Autonomous Bug Reproduction CLI\n');
+  console.log('─'.repeat(50));
+
+  const bug = await question('🐛 Bug description');
   if (!bug) {
-    console.error('Error: Bug description required');
-    console.error('Usage: repro "app crashes on login"');
+    console.log('❌ Bug description is required');
     process.exit(1);
   }
 
-  const config = loadConfig(overrides);
+  const config = loadConfig({});
 
-  if (!config.appPath) {
-    console.error('Error: App path required. Set in config or pass --app');
-    console.error('Usage: repro "bug" --app ./app.apk');
+  const appPath = await question(`📱 App path${config.appPath ? ` [${config.appPath}]` : ''}`);
+  const finalAppPath = appPath || config.appPath;
+  if (!finalAppPath) {
+    console.log('❌ App path is required');
     process.exit(1);
   }
 
-  const deviceId = cliDeviceId || await selectDevice(config.platform);
+  let platform: 'android' | 'ios' = config.platform;
+  if (!platform) {
+    platform = await selectPlatform();
+  } else {
+    console.log(`📲 Platform: ${platform}`);
+  }
 
+  const deviceId = await selectDevice(platform);
   if (!deviceId) {
-    console.error('Error: No device selected or available');
+    console.log('❌ No device selected');
     process.exit(1);
   }
 
-  console.log(`🔍 repro: "${bug}"`);
-  console.log(`   app: ${config.appPath}`);
-  console.log(`   device: ${deviceId}`);
-  console.log(`   platform: ${config.platform}`);
-  console.log(`   max retries: ${config.maxRetries}`);
+  const retriesInput = await question(`🔄 Max retries [${DEFAULT_RETRIES}]`);
+  const maxRetries = retriesInput ? parseInt(retriesInput, RADIX) : DEFAULT_RETRIES;
+
+  console.log('\n' + '─'.repeat(50));
+  console.log('🚀 Starting repro...\n');
 
   const ctx = await runPipeline({
     bug,
-    appPath: config.appPath,
+    appPath: finalAppPath,
     deviceId,
-    platform: config.platform,
-    maxRetries: config.maxRetries,
+    platform,
+    maxRetries,
     flowDir: config.flowDir,
     resetStrategy: config.resetStrategy,
     uiTree: null,
@@ -149,4 +117,4 @@ async function main() {
   printSummary(ctx);
 }
 
-main();
+runInteractive();
