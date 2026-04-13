@@ -18,57 +18,40 @@ export async function gatherContext(ctx: ReproContext): Promise<ReproContext> {
       'hierarchy'
     ];
 
-    const proc = spawn(ctx.maestroPath, args, { timeout: MAESTRO_TIMEOUT_MS });
+    const proc = spawn(ctx.maestroPath, args);
     let stdout = '';
     let stderr = '';
+
+    const timer = setTimeout(() => {
+      proc.kill();
+      ctx.error = 'Maestro hierarchy timed out';
+      resolve(ctx);
+    }, MAESTRO_TIMEOUT_MS);
 
     proc.stdout?.on('data', (data) => { stdout += data.toString(); });
     proc.stderr?.on('data', (data) => { stderr += data.toString(); });
 
     proc.on('close', (code) => {
+      clearTimeout(timer);
+
       if (code !== 0) {
-        ctx.error = `Maestro hierarchy failed: ${stderr}`;
+        ctx.error = `Maestro hierarchy failed: ${stderr || 'unknown error'}`;
         resolve(ctx);
         return;
       }
 
       try {
-        ctx.uiTree = parseHierarchy(stdout);
+        ctx.uiTree = JSON.parse(stdout);
       } catch (err) {
-        ctx.error = `Failed to parse hierarchy: ${err}`;
+        ctx.error = `Failed to parse hierarchy JSON: ${err}`;
       }
       resolve(ctx);
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timer);
       ctx.error = `Failed to run maestro: ${err.message}`;
       resolve(ctx);
     });
   });
-}
-
-function parseHierarchy(output: string): object {
-  const elements: Record<string, unknown>[] = [];
-  const lines = output.split('\n');
-
-  for (const line of lines) {
-    const match = line.match(/^\s*\|\s*([^\|]+)\s*\|\s*([^\|]+)\s*\|\s*([^\|]*)\s*\|/);
-    if (match) {
-      const [, elementType, elementId, text] = match;
-      elements.push({
-        type: elementType.trim(),
-        id: elementId.trim(),
-        text: text.trim()
-      });
-    }
-  }
-
-  if (elements.length === 0) {
-    return { screen: 'Unknown', elements: [] };
-  }
-
-  return {
-    screen: 'CurrentScreen',
-    elements
-  };
 }
