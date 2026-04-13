@@ -4,10 +4,11 @@ import { runPipeline } from '@/pipeline';
 import { generateReport, printSummary } from '@/utils/output';
 import { listAndroidDevices } from '@/platform/android';
 import { listIOSSimulators } from '@/platform/ios';
-import type { Device } from '@/context';
+import { join } from 'path';
 
 const RADIX = 10;
 const DEFAULT_RETRIES = 5;
+const DEFAULT_MAESTRO_PATH = join(__dirname, '..', '..', 'maestro', 'maestro', 'bin', 'maestro');
 
 async function question(prompt: string): Promise<string> {
   return new Promise((resolve) => {
@@ -145,6 +146,7 @@ async function runInteractive(): Promise<void> {
       maxRetries,
       flowDir: config.flowDir,
       resetStrategy: config.resetStrategy,
+      maestroPath: DEFAULT_MAESTRO_PATH,
       uiTree: null,
       plan: null,
       flowFile: null,

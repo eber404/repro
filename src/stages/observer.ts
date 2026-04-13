@@ -18,7 +18,7 @@ export async function observe(ctx: ReproContext): Promise<ReproContext> {
       mkdirSync(logsDir, { recursive: true });
     }
 
-    const logs = await captureDeviceLogs(ctx.platform);
+    const logs = await captureDeviceLogs(ctx.platform, ctx.deviceId);
     const logFile = join(logsDir, 'device.log');
     writeFileSync(logFile, logs);
 
@@ -35,13 +35,20 @@ export async function observe(ctx: ReproContext): Promise<ReproContext> {
   return ctx;
 }
 
-async function captureDeviceLogs(platform: 'android' | 'ios'): Promise<string> {
-  const cmd = platform === 'android'
-    ? 'adb logcat -d'
-    : 'xcrun simctl diagnose';
-
+async function captureDeviceLogs(platform: 'android' | 'ios', deviceId: string | null): Promise<string> {
   return new Promise((resolve) => {
-    const proc = spawn(cmd, [], { shell: true, timeout: LOG_CAPTURE_TIMEOUT_MS });
+    let cmd: string;
+    let args: string[];
+
+    if (platform === 'android') {
+      cmd = 'adb';
+      args = deviceId ? ['-s', deviceId, 'logcat', '-d'] : ['logcat', '-d'];
+    } else {
+      cmd = 'xcrun';
+      args = ['simctl', 'diagnose', deviceId || ''];
+    }
+
+    const proc = spawn(cmd, args, { timeout: LOG_CAPTURE_TIMEOUT_MS });
     let output = '';
 
     proc.stdout?.on('data', (data) => { output += data.toString(); });

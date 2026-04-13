@@ -20,23 +20,36 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
   const hash = ctx.bug.replace(/[^a-z0-9]/gi, '').substring(0, HASH_LENGTH);
   const flowFile = join(flowDir, `${hash}.yaml`);
 
+  const yaml = generateMaestroYaml(ctx);
+  writeFileSync(flowFile, yaml);
+  ctx.flowFile = flowFile;
+
+  return ctx;
+}
+
+function generateMaestroYaml(ctx: ReproContext): string {
   let yaml = `# repro-generated: ${ctx.bug}\n`;
-  yaml += `# Platform: ${ctx.platform}\n\n`;
+  yaml += `# Platform: ${ctx.platform}\n`;
+  yaml += `# App: ${ctx.appPath}\n`;
+  yaml += `# Device: ${ctx.deviceId}\n\n`;
   yaml += `appId: ${ctx.appPath}\n`;
+  yaml += `platform: ${ctx.platform}\n`;
   yaml += `---\n`;
   yaml += `flows:\n`;
   yaml += `  - flow:\n`;
   yaml += `      name: Repro flow\n`;
   yaml += `      steps:\n`;
 
+  yaml += `        - launchApp:\n`;
+  yaml += `            appId: ${ctx.appPath}\n`;
+  yaml += `            clearState: true\n`;
+  yaml += `            clearKeychain: true\n`;
+
   for (const step of ctx.plan.steps) {
     yaml += `        ${compileStepToYaml(step)}`;
   }
 
-  writeFileSync(flowFile, yaml);
-  ctx.flowFile = flowFile;
-
-  return ctx;
+  return yaml;
 }
 
 function compileStepToYaml(step: { action: string; element?: string; text?: string; direction?: string }): string {
@@ -44,7 +57,7 @@ function compileStepToYaml(step: { action: string; element?: string; text?: stri
     case 'tap':
       return `- tapOn: "${step.element}"\n`;
     case 'input':
-      return `- inputText: "${step.text}"\n`;
+      return `- inputText:\n            text: "${step.text}"\n`;
     case 'swipe':
       return `- swipe: "${step.direction}"\n`;
     case 'pressKey':
@@ -52,6 +65,6 @@ function compileStepToYaml(step: { action: string; element?: string; text?: stri
     case 'assert':
       return `- assertVisible: "${step.element}"\n`;
     default:
-      return `# Unknown action: ${step.action}`;
+      return `# Unknown action: ${step.action}\n`;
   }
 }

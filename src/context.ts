@@ -6,6 +6,7 @@ export interface ReproContext {
   maxRetries: number;
   flowDir: string;
   resetStrategy: 'clear-app-data' | 'deep-link';
+  maestroPath: string;
   uiTree: object | null;
   plan: Plan | null;
   flowFile: string | null;
@@ -47,4 +48,15 @@ export interface PlanStep {
   text?: string;
   direction?: string;
   key?: string;
+}
+
+export interface UIElement {
+  id?: string;
+  text?: string;
+  contentDescription?: string;
+  resourceId?: string;
+  className?: string;
+  enabled?: boolean;
+  focused?: boolean;
+  bounds?: { x: number; y: number; width: number; height: number };
 }

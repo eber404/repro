@@ -1,5 +1,6 @@
 import { ReproContext } from '@/context';
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 
 const EXECUTOR_TIMEOUT_MS = 300_000;
 
@@ -11,9 +12,26 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
     return ctx;
   }
 
+  if (!ctx.deviceId) {
+    ctx.error = 'Executor requires deviceId';
+    return ctx;
+  }
+
+  if (!existsSync(ctx.flowFile)) {
+    ctx.error = `Flow file not found: ${ctx.flowFile}`;
+    return ctx;
+  }
+
   return new Promise((resolve) => {
-    const cmd = `maestro test ${ctx.flowFile}`;
-    const proc = spawn(cmd, [], { shell: true });
+    const args = [
+      'test',
+      ctx.flowFile,
+      '--platform', ctx.platform,
+      '--udid', ctx.deviceId,
+      '--no-reinstall-driver'
+    ];
+
+    const proc = spawn(ctx.maestroPath, args);
 
     const timer = setTimeout(() => {
       proc.kill();
@@ -23,7 +41,11 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
 
     let output = '';
 
-    proc.stdout?.on('data', (data) => { output += data.toString(); });
+    proc.stdout?.on('data', (data) => {
+      const text = data.toString();
+      output += text;
+      process.stdout.write(text);
+    });
     proc.stderr?.on('data', (data) => { output += data.toString(); });
 
     proc.on('close', (code) => {
@@ -37,6 +59,7 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timer);
       ctx.error = `Executor failed: ${err.message}`;
       resolve(ctx);
     });
