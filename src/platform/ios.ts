@@ -5,7 +5,7 @@ const SIMCTL_TIMEOUT_MS = 30_000;
 
 export async function listIOSSimulators(): Promise<Device[]> {
   return new Promise((resolve) => {
-    const proc = spawn('xcrun', ['simctl', 'list', 'devices', 'running'], { timeout: SIMCTL_TIMEOUT_MS });
+    const proc = spawn('xcrun', ['simctl', 'list', 'devices', 'available'], { timeout: SIMCTL_TIMEOUT_MS });
     let output = '';
 
     proc.stdout?.on('data', (data) => { output += data.toString(); });
@@ -14,13 +14,16 @@ export async function listIOSSimulators(): Promise<Device[]> {
       const lines = output.split('\n');
 
       for (const line of lines) {
-        if (!line.includes('iPhone') && !line.includes('iPad') && !line.includes('Booted')) continue;
+        if (!line.includes('Booted')) continue;
 
-        const name = line.split('(')[0].trim();
-        const idMatch = line.match(/--device\s+([A-F0-9-]+)/i);
-        const id = idMatch?.[1] || name;
+        const nameMatch = line.match(/([^\(]+)\s+\(/);
+        const idMatch = line.match(/([A-F0-9-]{36})/);
 
-        if (name) devices.push({ id, name });
+        if (nameMatch && idMatch) {
+          const name = nameMatch[1].trim();
+          const id = idMatch[1];
+          devices.push({ id, name });
+        }
       }
 
       resolve(devices);
