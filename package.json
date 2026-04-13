@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
-    "test": "bun test"
+    "test": "bun test",
+    "tsc": "bunx tsc --noEmit",
+    "tsc:watch": "bunx tsc --noEmit --watch"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/bun": "^1.3.12"
+  }
 }

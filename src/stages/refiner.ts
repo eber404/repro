@@ -1,7 +1,7 @@
 import { ReproContext, Plan } from '@/context';
 import { spawnAgent } from '@/agents/cli';
 
-const AGENT_ENV = process.env.REPRO_AGENT || 'claude';
+const AGENT_ENV = process.env.REPRO_AGENT || 'gemini';
 const REFINER_TIMEOUT_MS = 90_000;
 
 function extractJson(text: string): string {
@@ -26,7 +26,7 @@ Execution output: ${ctx.executionResult?.output}
 Why didn't this plan work? Suggest a refined plan with different steps. Return JSON without markdown formatting.`;
 
   try {
-    const result = await spawnAgent(prompt, AGENT_ENV as 'claude' | 'codex' | 'opencode', REFINER_TIMEOUT_MS);
+    const result = await spawnAgent(prompt, AGENT_ENV as 'gemini' | 'claude' | 'codex' | 'opencode', REFINER_TIMEOUT_MS);
     const jsonText = extractJson(result);
     ctx.refinement = JSON.parse(jsonText) as Plan;
     ctx.plan = ctx.refinement;
