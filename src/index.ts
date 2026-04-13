@@ -8,7 +8,7 @@ import { join } from 'path';
 
 const RADIX = 10;
 const DEFAULT_RETRIES = 5;
-const DEFAULT_MAESTRO_PATH = join(__dirname, '..', '..', 'maestro', 'maestro', 'bin', 'maestro');
+const DEFAULT_MAESTRO_PATH = join(process.cwd(), 'maestro', 'maestro', 'bin', 'maestro');
 
 async function question(prompt: string): Promise<string> {
   return new Promise((resolve) => {
