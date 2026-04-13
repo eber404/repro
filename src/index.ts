@@ -26,9 +26,9 @@ function parseArgs(args: string[]): { bug: string; overrides: Partial<Config> } 
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--app') overrides.appPath = args[++i];
-    else if (arg === '--retries') overrides.maxRetries = parseInt(args[++i], RADIX);
-    else if (arg === '--platform') overrides.platform = args[++i] as 'android' | 'ios';
+    if (arg === '--app' && i + 1 < args.length) overrides.appPath = args[++i];
+    else if (arg === '--retries' && i + 1 < args.length) overrides.maxRetries = parseInt(args[++i], RADIX);
+    else if (arg === '--platform' && i + 1 < args.length) overrides.platform = args[++i] as 'android' | 'ios';
   }
 
   return { bug: bug || '', overrides };

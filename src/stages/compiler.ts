@@ -30,7 +30,7 @@ export async function compile(ctx: ReproContext): Promise<ReproContext> {
   yaml += `      steps:\n`;
 
   for (const step of ctx.plan.steps) {
-    yaml += `        ${compileStepToYaml(step)}\n`;
+    yaml += `        ${compileStepToYaml(step)}`;
   }
 
   writeFileSync(flowFile, yaml);

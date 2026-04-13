@@ -23,7 +23,8 @@ Did the bug get reproduced? Answer with JSON: {"reproduced": true/false, "reason
     const result = await spawnAgent(prompt, EVAL_AGENT as 'claude' | 'codex' | 'opencode', EVAL_TIMEOUT_MS);
     const parsed = JSON.parse(result);
     ctx.reproduced = parsed.reproduced;
-  } catch {
+  } catch (err) {
+    ctx.error = `Eval agent failed: ${err}`;
     ctx.reproduced = !ctx.executionResult.success;
   }
 

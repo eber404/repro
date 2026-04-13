@@ -13,7 +13,13 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
 
   return new Promise((resolve) => {
     const cmd = `maestro test ${ctx.flowFile}`;
-    const proc = spawn(cmd, [], { shell: true, timeout: EXECUTOR_TIMEOUT_MS });
+    const proc = spawn(cmd, [], { shell: true });
+
+    const timer = setTimeout(() => {
+      proc.kill();
+      ctx.error = `Executor timed out after ${EXECUTOR_TIMEOUT_MS}ms`;
+      resolve(ctx);
+    }, EXECUTOR_TIMEOUT_MS);
 
     let output = '';
 
@@ -21,6 +27,7 @@ export async function execute(ctx: ReproContext): Promise<ReproContext> {
     proc.stderr?.on('data', (data) => { output += data.toString(); });
 
     proc.on('close', (code) => {
+      clearTimeout(timer);
       ctx.executionResult = {
         success: code === 0,
         output,
