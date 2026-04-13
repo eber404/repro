@@ -18,7 +18,7 @@ async function question(prompt: string): Promise<string> {
   });
 }
 
-async function selectDevice(platform: 'android' | 'ios'): Promise<string | null> {
+async function selectDevices(platform: 'android' | 'ios'): Promise<string[]> {
   console.log(`\n📱 ${platform === 'android' ? 'Android devices' : 'iOS simulators'}:\n`);
 
   const devices: Device[] = platform === 'android'
@@ -27,7 +27,7 @@ async function selectDevice(platform: 'android' | 'ios'): Promise<string | null>
 
   if (devices.length === 0) {
     console.log(`   ❌ No ${platform} devices found. Make sure an emulator is running.`);
-    return null;
+    return [];
   }
 
   for (let i = 0; i < devices.length; i++) {
@@ -35,16 +35,30 @@ async function selectDevice(platform: 'android' | 'ios'): Promise<string | null>
     console.log(`   ${i + 1}. ${devices[i].name}${status}`);
   }
 
-  const choice = await question(`\n🔧 Select device (1-${devices.length})`);
-  const index = parseInt(choice, RADIX) - 1;
+  console.log('\n💡 Enter device numbers separated by comma (e.g., 1,3) or "all" for all devices');
+  const choice = await question('\n🔧 Select devices');
 
-  if (isNaN(index) || index < 0 || index >= devices.length) {
-    console.log(`   ⚠️  Invalid selection, using first device: ${devices[0].name}`);
-    return devices[0].id;
+  if (choice.toLowerCase() === 'all') {
+    console.log(`   ✅ Selected all ${devices.length} devices`);
+    return devices.map(d => d.id);
   }
 
-  console.log(`   ✅ Selected: ${devices[index].name}`);
-  return devices[index].id;
+  const indices = choice.split(',').map(s => parseInt(s.trim(), RADIX) - 1);
+  const selected: string[] = [];
+
+  for (const idx of indices) {
+    if (!isNaN(idx) && idx >= 0 && idx < devices.length) {
+      selected.push(devices[idx].id);
+    }
+  }
+
+  if (selected.length === 0) {
+    console.log('   ⚠️  No valid selection, using first device');
+    selected.push(devices[0].id);
+  }
+
+  console.log(`   ✅ Selected ${selected.length} device(s)`);
+  return selected;
 }
 
 async function selectPlatform(): Promise<'android' | 'ios'> {
@@ -65,13 +79,6 @@ async function runInteractive(): Promise<void> {
 
   const config = loadConfig({});
 
-  const appPath = await question(`📱 App path${config.appPath ? ` [${config.appPath}]` : ''}`);
-  const finalAppPath = appPath || config.appPath;
-  if (!finalAppPath) {
-    console.log('❌ App path is required');
-    process.exit(1);
-  }
-
   let platform: 'android' | 'ios' = config.platform;
   if (!platform) {
     platform = await selectPlatform();
@@ -79,9 +86,15 @@ async function runInteractive(): Promise<void> {
     console.log(`📲 Platform: ${platform}`);
   }
 
-  const deviceId = await selectDevice(platform);
-  if (!deviceId) {
-    console.log('❌ No device selected');
+  const deviceIds = await selectDevices(platform);
+  if (deviceIds.length === 0) {
+    console.log('❌ No devices selected');
+    process.exit(1);
+  }
+
+  const appId = await question('\n📦 App ID (e.g., com.example.app)');
+  if (!appId) {
+    console.log('❌ App ID is required');
     process.exit(1);
   }
 
@@ -91,30 +104,35 @@ async function runInteractive(): Promise<void> {
   console.log('\n' + '─'.repeat(50));
   console.log('🚀 Starting repro...\n');
 
-  const ctx = await runPipeline({
-    bug,
-    appPath: finalAppPath,
-    deviceId,
-    platform,
-    maxRetries,
-    flowDir: config.flowDir,
-    resetStrategy: config.resetStrategy,
-    uiTree: null,
-    plan: null,
-    flowFile: null,
-    executionResult: null,
-    executionReport: null,
-    reproduced: null,
-    refinement: null,
-    error: null,
-    attempt: 1
-  });
+  for (const deviceId of deviceIds) {
+    console.log(`📱 Running on device: ${deviceId}\n`);
 
-  if (ctx.reproduced) {
-    generateReport(ctx);
+    const ctx = await runPipeline({
+      bug,
+      appPath: appId,
+      deviceId,
+      platform,
+      maxRetries,
+      flowDir: config.flowDir,
+      resetStrategy: config.resetStrategy,
+      uiTree: null,
+      plan: null,
+      flowFile: null,
+      executionResult: null,
+      executionReport: null,
+      reproduced: null,
+      refinement: null,
+      error: null,
+      attempt: 1
+    });
+
+    if (ctx.reproduced) {
+      generateReport(ctx);
+    }
+
+    printSummary(ctx);
+    console.log('');
   }
-
-  printSummary(ctx);
 }
 
 runInteractive();
