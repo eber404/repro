@@ -1,7 +1,7 @@
 import { ReproContext } from '@/context';
 import { spawnAgent } from '@/agents/cli';
 
-const EVAL_AGENT = process.env.REPRO_EVAL_AGENT || process.env.REPRO_AGENT || 'gemini';
+const EVAL_AGENT = process.env.REPRO_EVAL_AGENT || process.env.REPRO_AGENT || 'claude';
 const EVAL_TIMEOUT_MS = 60_000;
 
 function extractJson(text: string): string {

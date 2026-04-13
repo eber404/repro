@@ -8,12 +8,21 @@ export interface AgentResult {
   exitCode: number;
 }
 
-function buildArgs(agent: AgentType, prompt: string): string[] {
+function buildArgs(agent: AgentType, prompt: string, files?: string[]): string[] {
+  const baseArgs: string[] = [];
+  
   switch (agent) {
     case 'gemini':
       return ['--prompt', prompt];
     case 'claude':
-      return ['--print', prompt];
+      baseArgs.push('--print');
+      if (files && files.length > 0) {
+        for (const file of files) {
+          baseArgs.push('--file', file);
+        }
+      }
+      baseArgs.push(prompt);
+      return baseArgs;
     case 'codex':
       return ['--prompt', prompt];
     case 'opencode':
@@ -26,9 +35,10 @@ function buildArgs(agent: AgentType, prompt: string): string[] {
 export async function spawnAgent(
   prompt: string,
   agent: AgentType,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  files?: string[]
 ): Promise<string> {
-  const args = buildArgs(agent, prompt);
+  const args = buildArgs(agent, prompt, files);
 
   const proc = Bun.spawn({
     cmd: [agent, ...args],
