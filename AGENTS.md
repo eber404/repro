@@ -21,6 +21,7 @@ Initially, repro supports native routing to the following locally installed AI C
 |----------|---------|-------------|
 | `REPRO_AGENT` | `claude` | Default agent for Planner and Refiner (claude, gemini, codex, opencode) |
 | `REPRO_EVAL_AGENT` | `REPRO_AGENT` | Agent specifically for Evaluator |
+| `REPRO_LOGIN_AGENT` | `REPRO_AGENT` | Agent specifically for visual screen analysis/login bootstrap |
 | `REPRO_APP_EMAIL` | - | App login email (loaded from `.env`) |
 | `REPRO_APP_PASSWORD` | - | App login password (loaded from `.env`) |
 
@@ -51,24 +52,72 @@ These credentials are passed to the Planner when the app requires authentication
 When repro needs to plan a test or evaluate a failure, it constructs a highly optimized prompt containing the bug description, UI View Tree, and logs, and pipes it directly into your preferred CLI. It then parses the standard output (stdout) to continue the autonomous loop.
 
 🔄 The Autonomous Loop
-The orchestrator and the delegated agents operate in a continuous cycle until the bug is reproduced or a maximum retry limit is reached. The lifecycle follows this sequence:
+The orchestrator and delegated agents operate in a continuous cycle until the bug is reproduced or max retries is reached. The lifecycle follows this sequence:
 
-Bug Report ➔ Context Gatherer ➔ Planner (via CLI) ➔ Compiler ➔ State Manager ➔ Executor ➔ Observer ➔ Evaluator (via CLI) ➔ Refiner (via CLI) ➔ (Repeat)
+Bug Report ➔ Bug Enhancer (AI) ➔ Preflight ➔ Visual Context Gatherer (hierarchy + screenshot) ➔ Screen Analyzer (AI) ➔ Login Bootstrap Executor (conditional) ➔ Planner (AI) ➔ Compiler ➔ State Manager ➔ Executor ➔ Observer ➔ Evaluator (AI) ➔ Refiner (AI) ➔ (Repeat)
 
 Agent Roles and Responsibilities
 Each component in the pipeline has a strict scope. repro handles the deterministic execution, while your installed AI CLI handles the cognition.
 
-1. 👁️ Context Gatherer
+1. ✍️ Bug Enhancer
+   Type: Delegated (via local AI CLI)
+
+Input: raw bug description from CLI.
+
+Task: Improve wording for planning while preserving intent and original language.
+
+Output: `enhancedBugDescription` used by planner.
+
+2. 🔎 Preflight
+   Type: Deterministic (Internal repro logic)
+
+Input: appId, platform, deviceId, maestroPath.
+
+Task: Run a minimal `preflight.yaml` that only launches the app with clean state.
+
+Output: pass/fail gate before heavy stages.
+
+Failure policy:
+- Preflight failure is fatal for the attempt/process.
+- No further cognitive stages run for that attempt.
+
+3. 👁️ Visual Context Gatherer
    Type: Deterministic (Internal repro logic)
    Before any LLM intervention, this module grounds the system in reality. It prevents the Planner from hallucinating non-existent buttons by dumping the current state of the application.
 
 Input: App binary and emulator connection.
 
-Task: Extracts the View Tree and Accessibility IDs via Maestro.
+Task: Run `maestro hierarchy` and capture a visible screenshot every attempt.
 
-Output: A clean, token-optimized JSON/XML representation of the current screen.
+Output: Parsed UI tree plus screenshot path in attempt artifacts.
 
-2. 🧠 Planner
+4. 🖼️ Screen Analyzer
+   Type: Delegated (via local AI CLI)
+
+Input: UI tree + visible screenshot + enhanced bug description.
+
+Task: Return screen analysis always; when credentials exist, also return a login bootstrap Maestro YAML.
+
+Output:
+- always: `screenAnalysis`
+- conditional: `loginBootstrapYaml`
+
+Hard rule:
+- No heuristic selector guessing for login.
+- Login bootstrap must be AI-derived from runtime visual context.
+
+5. 🔐 Login Bootstrap Executor
+   Type: Deterministic (Internal repro logic)
+
+Input: credentials gate + AI-generated login YAML.
+
+Task: Execute login bootstrap before planner flow when both `REPRO_APP_EMAIL` and `REPRO_APP_PASSWORD` are present.
+
+Failure policy:
+- With credentials configured, missing/invalid YAML or Maestro bootstrap failure is fatal.
+- Without credentials, bootstrap stage is skipped by design.
+
+6. 🧠 Planner
    Type: Delegated High-Cognition (via claude, codex, or opencode)
    This is the strategic core of the system. repro invokes your local AI CLI to cross-reference the vague natural language bug description with the actual UI tree.
 
@@ -78,7 +127,7 @@ Task: Generates a step-by-step hypothesis of how to trigger the bug.
 
 Output: A structured JSON intent describing the actions and expected UI changes.
 
-3. 🛠️ Compiler
+7. 🛠️ Compiler
    Type: Deterministic (Internal repro logic)
    LLMs are prone to formatting errors. Instead of having the AI write YAML directly, the Compiler acts as a translation layer.
 
@@ -88,19 +137,19 @@ Task: Translates the intent into perfectly formatted, executable Maestro YAML fl
 
 Output: Executable .yaml files.
 
-4. 🧹 State & Fixture Manager
+8. 🧹 State & Fixture Manager
    Type: Deterministic (Internal repro logic)
    UI testing is stateful. If an agent logs in during attempt 1, attempt 2 will fail because the user is already logged in.
 
 Task: Triggers deep links (e.g., app://dev/reset-state), clears app cache, or drops local databases before the next execution runs.
 
-5. ⚡ Executor & Network Proxy
+9. ⚡ Executor & Network Proxy
    Type: Environment Controller (Internal repro logic)
    This module physically interacts with the iOS/Android simulator and the network layer.
 
 Task: Runs the Maestro flow and manipulates the network proxy (injecting artificial latency or HTTP 500s) as requested by the Planner's hypothesis.
 
-6. 📡 Observer
+10. 📡 Observer
    Type: Heuristic Monitor (Internal repro logic)
    A passive monitoring agent that watches the execution in real-time. It does not make decisions; it only collects evidence.
 
@@ -110,7 +159,7 @@ Task: Flags anomalies like silent crashes, UI freezes, or unexpected network err
 
 Output: An "Execution Report" containing the exact sequence of events.
 
-7. ⚖️ Evaluator
+11. ⚖️ Evaluator
    Type: Delegated Fast-Cognition (via CLI)
    This agent acts as the judge. repro asks the local AI CLI to compare what was supposed to happen with what actually happened.
 
@@ -120,7 +169,7 @@ Task: Determines if the bug was successfully reproduced.
 
 Output: Boolean (Reproduced: true/false) and a brief explanation.
 
-8. 🔄 Refiner
+12. 🔄 Refiner
    Type: Delegated High-Cognition (via CLI)
    If the Evaluator determines the bug was not reproduced, the Refiner takes over. repro feeds the entire failed loop back into the AI CLI to adjust the strategy.
 
@@ -151,4 +200,8 @@ These rules apply to all code written in this project:
 - **Path aliases** — Use `@/*` imports (e.g., `@/agents/cli`) over relative paths
 - **Avoid if-else chains when possible** — Use map/object lookup or early return patterns
 - **Bun-first** — Leverage Bun's built-in APIs; no heavy Node.js polyfills
+- **Preflight is mandatory** — Fail fast when Maestro cannot launch app cleanly
+- **Visual context is mandatory** — Capture hierarchy + visible screenshot every attempt
+- **AI login bootstrap gate** — Only execute login bootstrap when both app credentials are configured
+- **No heuristic login selector detection** — Login automation must come from AI analysis of runtime visual context
 - **Keep AGENTS.md updated** — Document architectural decisions here as they evolve

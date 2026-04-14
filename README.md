@@ -72,22 +72,33 @@ repro "button doesn't work" --device "Android Emulator" -app "com.example.app"
 |----------|-------------|
 | `REPRO_AGENT` | AI agent for planning (claude, gemini, codex, opencode). Default: claude |
 | `REPRO_EVAL_AGENT` | AI agent for evaluation. Default: same as REPRO_AGENT |
+| `REPRO_LOGIN_AGENT` | AI agent for visual screen analysis/login bootstrap. Default: same as REPRO_AGENT |
 | `REPRO_APP_EMAIL` | App login email (from .env) |
 | `REPRO_APP_PASSWORD` | App login password (from .env) |
 
 ## How it Works
 
 ```
-Bug Description → Gather UI Context → AI Planning → Execute Flow → Observe → Evaluate → (Repeat if needed)
+Bug Description
+  → Enhance Bug Description (AI)
+  → Preflight (Maestro clean launch gate)
+  → Gather Visual Context (hierarchy + screenshot)
+  → Screen Analysis (AI, always)
+  → Login Bootstrap (AI YAML, only with credentials)
+  → Planner → Compiler → State Manager → Executor → Observer → Evaluator → Refiner
 ```
 
-1. **Context Gatherer** - Gets the app's current screen and UI elements
-2. **AI Planner** - Creates a plan to reproduce the bug
-3. **Compiler** - Generates a Maestro YAML flow
-4. **Executor** - Runs the flow on the device
-5. **Observer** - Captures logs and screenshots
-6. **Evaluator** - Determines if the bug was reproduced
-7. **Refiner** - Adjusts strategy if reproduction failed
+1. **Enhance Bug Description (AI)** - Refines the CLI bug text without changing intent
+2. **Preflight** - Verifies Maestro can launch the app cleanly before execution
+3. **Gather Visual Context** - Captures `maestro hierarchy` plus visible screenshot every attempt
+4. **Screen Analysis (AI)** - Uses hierarchy + screenshot to produce runtime screen analysis
+5. **Login Bootstrap** - Runs AI-generated login YAML only when both credentials are configured
+6. **Planner/Compiler/Executor loop** - Plans repro, compiles YAML, executes, observes, evaluates, and refines
+
+### Fatal stop rules
+
+- Preflight failure stops the attempt/process immediately (non-retryable).
+- With credentials configured, invalid/missing login YAML or bootstrap execution failure is fatal.
 
 ## Output
 
@@ -96,10 +107,12 @@ After running, repro creates:
 ```
 flows/
 └── 2026-04-13_10-30-00/
+    ├── preflight.yaml
     └── attempt-1/
-        ├── flow.yaml           # Executable Maestro flow
-        ├── report.json         # Detailed report
-        └── screenshots/        # Evidence screenshots
+        ├── visible-screen.png  # Current visible screen capture
+        ├── login-bootstrap.yaml # Generated only with credentials
+        ├── flow.yaml           # Executable bug reproduction flow
+        └── logs/               # Device/runtime logs
 ```
 
 ## Examples
@@ -126,9 +139,9 @@ repro "payment fails when card is expired" --device "iPhone 16e" -app "com.examp
 - iOS: `open -a Simulator`
 - Android: Start an AVD from Android Studio or command line
 
-**Login detection fails:**
+**Login bootstrap fails:**
 - Ensure `.env` file has correct `REPRO_APP_EMAIL` and `REPRO_APP_PASSWORD`
-- The app must show a login screen on fresh start
+- Confirm the visible login screen is present on clean launch
 
 **Maestro errors:**
 - Check that Maestro CLI is installed: `maestro --version`
