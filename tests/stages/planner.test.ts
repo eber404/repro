@@ -5,6 +5,7 @@ import type { ReproContext } from '@/context';
 function createContext(): ReproContext {
   return {
     bug: 'app crashes after login',
+    enhancedBugDescription: 'app crashes after login after tapping profile quickly',
     appId: 'com.example.app',
     deviceId: 'device-1',
     platform: 'android',
@@ -14,6 +15,7 @@ function createContext(): ReproContext {
     resetDeepLink: 'app://dev/reset-state',
     maestroPath: '/tmp/maestro',
     uiTree: { root: { id: 'screen' } },
+    screenAnalysis: 'visible screen is dashboard with profile tab',
     plan: null,
     flowFile: null,
     executionResult: { success: false, output: 'timeout', screenshots: [] },
@@ -30,6 +32,12 @@ test('planner prompt includes failed attempt context', () => {
   const prompt = buildPlannerPrompt(createContext());
   expect(prompt).toContain('PREVIOUS FAILED ATTEMPT CONTEXT');
   expect(prompt).toContain('latestExecutionSummary: timeout');
+});
+
+test('planner prompt prioritizes enhanced bug description and visual analysis', () => {
+  const prompt = buildPlannerPrompt(createContext());
+  expect(prompt).toContain('Bug: "app crashes after login after tapping profile quickly"');
+  expect(prompt).toContain('SCREEN ANALYSIS: visible screen is dashboard with profile tab');
 });
 
 test('planner prompt documents optional network controls', () => {

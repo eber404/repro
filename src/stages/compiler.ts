@@ -80,32 +80,11 @@ function generateMaestroYaml(ctx: ReproContext): string {
   yaml += `    clearState: true\n`;
   yaml += `    clearKeychain: true\n`;
 
-  if (ctx.loginFlow) {
-    yaml += generateLoginSteps(ctx);
-  }
-
   if (ctx.plan) {
     for (const step of ctx.plan.steps) {
       yaml += `${compileStepToYaml(step)}`;
     }
   }
-
-  return yaml;
-}
-
-function generateLoginSteps(ctx: ReproContext): string {
-  const { emailField, passwordField, loginButton } = ctx.loginFlow!;
-  const { email, password } = ctx.credentials!;
-
-  let yaml = '';
-  yaml += `- tapOn: "${emailField}"\n`;
-  yaml += `- inputText:\n`;
-  yaml += `    text: "${email}"\n`;
-  yaml += `- tapOn: "${passwordField}"\n`;
-  yaml += `- inputText:\n`;
-  yaml += `    text: "${password}"\n`;
-  yaml += `- tapOn: "${loginButton}"\n`;
-  yaml += `- waitForAnimationToEnd:\n`;
 
   return yaml;
 }

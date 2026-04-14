@@ -1,6 +1,9 @@
 import { ReproContext } from '@/context';
+import { enhanceBugDescription } from '@/stages/enhanceBugDescription';
+import { verifyAppLaunch } from '@/stages/preflight';
 import { gatherContext } from '@/stages/gatherContext';
-import { detectLoginFields } from '@/stages/loginDetector';
+import { analyzeScreenWithAi } from '@/stages/screenAnalyzer';
+import { executeLoginBootstrap } from '@/stages/loginBootstrapExecutor';
 import { plan } from '@/stages/planner';
 import { compile } from '@/stages/compiler';
 import { resetState } from '@/stages/stateManager';
@@ -9,9 +12,12 @@ import { observe } from '@/stages/observer';
 import { evaluate } from '@/stages/evaluator';
 import { refine } from '@/stages/refiner';
 
-const PIPELINE_STAGES = [
+export const PIPELINE_STAGES = [
+  enhanceBugDescription,
+  verifyAppLaunch,
   gatherContext,
-  detectLoginFields,
+  analyzeScreenWithAi,
+  executeLoginBootstrap,
   plan,
   compile,
   resetState,
@@ -21,6 +27,13 @@ const PIPELINE_STAGES = [
   refine
 ] as const;
 
+export const NON_RETRYABLE_STAGE_FAILURES = new Set([
+  'verifyAppLaunch',
+  'gatherContext',
+  'analyzeScreenWithAi',
+  'executeLoginBootstrap'
+]);
+
 export async function runPipeline(ctx: ReproContext): Promise<ReproContext> {
   let currentCtx = { ...ctx };
 
@@ -29,6 +42,7 @@ export async function runPipeline(ctx: ReproContext): Promise<ReproContext> {
     currentCtx.error = null;
     currentCtx.reproduced = null;
     currentCtx.attempt = attempt;
+    let failedStageName = '';
 
     for (const stage of PIPELINE_STAGES) {
       const stageStart = Date.now();
@@ -40,11 +54,17 @@ export async function runPipeline(ctx: ReproContext): Promise<ReproContext> {
       }
 
       if (currentCtx.error) {
+        failedStageName = stage.name;
         console.log(`   ❌ ${stage.name}: ${currentCtx.error}`);
         break;
       }
 
       console.log(`   ✅ ${stage.name} (${Date.now() - stageStart}ms)`);
+    }
+
+    if (failedStageName && NON_RETRYABLE_STAGE_FAILURES.has(failedStageName)) {
+      console.log(`\n❌ Stopping early due to non-retryable failure in ${failedStageName}`);
+      return currentCtx;
     }
 
     if (currentCtx.reproduced === true) {

@@ -32,18 +32,15 @@ export async function plan(ctx: ReproContext): Promise<ReproContext> {
 }
 
 export function buildPlannerPrompt(ctx: ReproContext): string {
+  const bugDescription = ctx.enhancedBugDescription || ctx.bug;
   const credentialsInfo = ctx.credentials?.email && ctx.credentials?.password
     ? `\n\nAPP CREDENTIALS (use these for login):
 - email: "${ctx.credentials.email}"
 - password: "${ctx.credentials.password}"`
     : '';
 
-  const loginFlowInfo = ctx.loginFlow
-    ? `\n\nLOGIN FLOW (derived from UI tree, already handled by compiler):
-- emailField: "${ctx.loginFlow.emailField}"
-- passwordField: "${ctx.loginFlow.passwordField}"
-- loginButton: "${ctx.loginFlow.loginButton}"
-Do NOT include login steps in the plan when this block exists.`
+  const screenAnalysis = ctx.screenAnalysis
+    ? `\n\nSCREEN ANALYSIS: ${typeof ctx.screenAnalysis === 'string' ? ctx.screenAnalysis : JSON.stringify(ctx.screenAnalysis)}`
     : '';
 
   const refinementInfo = ctx.refinement
@@ -53,7 +50,7 @@ Do NOT include login steps in the plan when this block exists.`
 - latestEvaluation: ${ctx.reproduced === false ? 'not reproduced' : 'unknown'}`
     : '';
 
-  return `Bug: "${ctx.bug}"${credentialsInfo}${loginFlowInfo}${refinementInfo}
+  return `Bug: "${bugDescription}"${credentialsInfo}${screenAnalysis}${refinementInfo}
 UI Tree: ${JSON.stringify(ctx.uiTree, null, 2)}
 
 Generate a JSON plan to reproduce this bug.

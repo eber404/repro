@@ -1,15 +1,17 @@
-import { expect, test } from 'bun:test'
-import { runPipeline } from '@/pipeline'
+import { expect, test } from 'bun:test';
+import { NON_RETRYABLE_STAGE_FAILURES, PIPELINE_STAGES, runPipeline } from '@/pipeline';
+import type { ReproContext } from '@/context';
 
-test.skip('pipeline runs without crashing', async () => {
-  const ctx = {
+function createContext(): ReproContext {
+  return {
     bug: 'test bug',
+    enhancedBugDescription: 'test bug',
     appId: 'com.example.app',
     deviceId: null,
-    platform: 'android' as const,
-    maxRetries: 1,
+    platform: 'android',
+    maxRetries: 3,
     flowDir: './test-flows',
-    resetStrategy: 'clear-app-data' as const,
+    resetStrategy: 'clear-app-data',
     resetDeepLink: 'app://dev/reset-state',
     maestroPath: '/tmp/maestro',
     uiTree: null,
@@ -20,10 +22,30 @@ test.skip('pipeline runs without crashing', async () => {
     reproduced: null,
     refinement: null,
     error: null,
-    attempt: 1,
-  }
+    attempt: 1
+  };
+}
 
-  const result = await runPipeline(ctx)
-  expect(result).toBeDefined()
-  expect(result.attempt).toBe(1)
-})
+test('pipeline includes new stage order for visual login bootstrap flow', () => {
+  const names = PIPELINE_STAGES.map((stage) => stage.name);
+  expect(names).toEqual([
+    'enhanceBugDescription',
+    'verifyAppLaunch',
+    'gatherContext',
+    'analyzeScreenWithAi',
+    'executeLoginBootstrap',
+    'plan',
+    'compile',
+    'resetState',
+    'execute',
+    'observe',
+    'evaluate',
+    'refine'
+  ]);
+});
+
+test('pipeline stops early when preflight fails as non-retryable', async () => {
+  const result = await runPipeline(createContext());
+  expect(result.error).toContain('Preflight requires deviceId');
+  expect(NON_RETRYABLE_STAGE_FAILURES.has('verifyAppLaunch')).toBe(true);
+});
