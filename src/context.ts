@@ -1,5 +1,6 @@
 export interface ReproContext {
   bug: string;
+  enhancedBugDescription?: string;
   appId: string;
   deviceId: string | null;
   platform: 'android' | 'ios';
@@ -9,6 +10,9 @@ export interface ReproContext {
   resetDeepLink?: string;
   maestroPath: string;
   uiTree: object | null;
+  visibleScreenshotPath?: string;
+  screenAnalysis?: string | Record<string, unknown>;
+  loginBootstrapYaml?: string;
   plan: Plan | null;
   flowFile: string | null;
   executionResult: ExecutionResult | null;
@@ -20,11 +24,6 @@ export interface ReproContext {
   credentials?: {
     email?: string;
     password?: string;
-  };
-  loginFlow?: {
-    emailField: string;
-    passwordField: string;
-    loginButton: string;
   };
 }
 
